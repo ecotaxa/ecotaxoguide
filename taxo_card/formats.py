@@ -1,0 +1,2 @@
+
+RichText = str

@@ -1,0 +1,8 @@
+
+- Can we assume WoRMS and use AphiaIDs ?
+
+- What can be in "free text"? e.g. bold/colors/... @see RichText
+
+- Descriptive schema: One view max. of each type?
+
+- Photos & figures: Description: simple text?

@@ -1,3 +1,4 @@
+- Must narrow editing to desktop (i.e. with a mouse)
 
 - Can we assume WoRMS and use AphiaIDs ?
 
@@ -6,3 +7,5 @@
 - Descriptive schema: One view max. of each type?
 
 - Photos & figures: Description: simple text?
+
+- Confusion: mandatory to have the other before - possible?

@@ -25,3 +25,17 @@ Conséquences pratiques:
 - Il n'est pas possible durant l'édition de modifier *Ce*, par exemple rajouter un nouveau type de label avec sa
   couleur.
 - Le gestionnaire peut se réduire à un simple gestionnaire de fichiers. On peut le couper pendant l'édition sans gêner.
+
+## Contraintes techniques
+
+- L'éditeur ne sera utilisé que sur des PC de bureau. On peut donc se réduire aux résolutions d'écran >= 1024x768 (XGA).
+  On peut également supposer la présence d'une souris standard, par exemple pour faire des actions sur click long ou
+  bouton droit. 
+
+## Format de fichiers
+
+# Configuration
+
+La configuration est une donnée au format JSON.
+
+# Fiche

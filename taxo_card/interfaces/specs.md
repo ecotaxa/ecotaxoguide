@@ -4,7 +4,8 @@ L'application se compose à minima:
 
 - D'un **gestionnaire** de fiches (côté serveur). Le gestionnaire s'occupe de la partie administrative (liste des
   fiches, utilisateurs, rôles, actions...).
-- D'un **éditeur** de fiche (côté navigateur). L'éditeur 
+- D'un **éditeur** de fiche (côté navigateur). L'éditeur est ce que l'utilisateur voit pendant la modification d'une
+  fiche.
 
 ## Scenario
 
@@ -20,5 +21,7 @@ L'application se compose à minima:
 - Le gestionnaire écrit *Fo*.
 
 Conséquences pratiques:
-- Il n'est pas possible durant l'édition de modifier *Ce*, par exemple rajouter un nouveau type de label avec sa couleur.
-- Le gestionnaire peut se réduire à un simple serveur de fichiers.
+
+- Il n'est pas possible durant l'édition de modifier *Ce*, par exemple rajouter un nouveau type de label avec sa
+  couleur.
+- Le gestionnaire peut se réduire à un simple gestionnaire de fichiers. On peut le couper pendant l'édition sans gêner.

@@ -1,0 +1,1 @@
+An Entity<->Relationship description of TaxoCard document.

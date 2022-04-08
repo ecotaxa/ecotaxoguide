@@ -51,13 +51,13 @@ La configuration est une donnée au format JSON.
 
 La fiche est au format HTML5. La correspondance entre les différentes parties de la fiche est résumée ci-dessous:
 
-| Bloc     | Document           | Obligatoire |
-|----------|--------------------|-------------|
-| Metadata | data-* du `<body>` | Oui         |
-|          |                    |             |
-|          |                    |             |
-|          |                    |             |
-|          |                    |             |
-|          |                    |             |
-|          |                    |             |
-|          |                    |             |
+| Bloc     | Document             | Obligatoire |
+|----------|----------------------|-------------|
+| Metadata | data-* dans `<body>` | Oui         |
+|          |                      |             |
+|          |                      |             |
+|          |                      |             |
+|          |                      |             |
+|          |                      |             |
+|          |                      |             |
+|          |                      |             |

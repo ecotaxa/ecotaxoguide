@@ -1,4 +1,3 @@
-# Install package beautifulsoup4
 from typing import List, Callable, Set
 
 from bs4 import BeautifulSoup, Tag

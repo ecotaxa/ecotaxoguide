@@ -1,2 +1,0 @@
-
-RichText = str

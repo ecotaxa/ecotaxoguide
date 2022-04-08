@@ -1,0 +1,9 @@
+
+.morpho-criteria > article {
+    background-color: red
+}
+
+.morpho-criteria::before {
+    color: red;
+    content: "Morphological identification criteria";
+}

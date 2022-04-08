@@ -17,6 +17,7 @@ class IdentificationCriterion:
     # Only alphanumeric characters, e.g. no emoticon.
     # Component e.g. https://ckeditor.com/docs/ckeditor5/latest/features/restricted-editing.html#demo
     # Serialize as HTML, using only <p></p> <strong></strong> <em></em> <ul><li></li></ul>
+    # "Morphological identification criteria"
     text: str
 
 """
@@ -37,7 +38,8 @@ class ShapeType(Enum):
     # <circle stroke="#00b050" ry="29" rx="31" id="svg_2" cy="743.96802" cx="473.48798"
     # stroke-width="3.168" fill="none" />
     CIRCLE = 4
-    SPLINE = 5
+    # Paths with  https://developer.mozilla.org/fr/docs/Web/SVG/Tutorial/Paths
+    SPLINE = 5 # TODO: Max of points "reasonable e.g. 20
     SPLINE_SINGLE_ARROW = 6  # Not SVG native
     SPLINE_DOUBLE_ARROW = 7  # Not SVG native
 

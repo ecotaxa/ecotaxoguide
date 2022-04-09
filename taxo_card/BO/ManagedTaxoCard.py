@@ -9,13 +9,7 @@ from typing import List, Optional
 from BO.Document.Card import TaxoCard
 from BO.Person import Person
 from Providers.EcoTaxa import InstrumentIDT
-from BO.app_types import ClassifIDT
-
-
-class ViewKind(Enum):
-    FRONTAL = "Frontal"
-    DORSAL = "Dorsal"
-    LATERAL = "Lateral"
+from Providers.EcoTaxoServer import ClassifIDT
 
 
 class ManagedTaxoCard(object):

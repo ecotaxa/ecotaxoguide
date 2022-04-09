@@ -3,8 +3,9 @@
 #
 # Card reader and validator
 #
+from collections import OrderedDict
 from pathlib import Path
-from typing import Tuple, OrderedDict, Any
+from typing import Tuple, OrderedDict as OrderedDictT, Any, List, Iterable
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag, PageElement, NavigableString
@@ -13,14 +14,24 @@ from emoji.core import is_emoji
 
 from BO.Document.Card import TaxoCard
 from BO.Document.Criteria import IdentificationCriteria
-from Services.html_utils import check_class, first_child_tag, no_blank_ite
+from BO.Document.ImagePlus import DescriptiveSchema, TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle
+from BO.app_types import ViewNameT
+from Services.html_utils import check_only_class_is, first_child_tag, no_blank_ite, get_nth_no_blank, \
+    check_get_attributes, check_get_single_child
 
 TAXOID_PROP = "data-taxoid"
 INSTRUMENTID_PROP = "data-instrumentid"
-BODY_ATTRS = {TAXOID_PROP, INSTRUMENTID_PROP}
+BODY_ATTRS = (TAXOID_PROP, INSTRUMENTID_PROP)
+
 MORPHO_CRITERIA_CLASS = "morpho-criteria"
 TOP_LEVEL_ARTICLE = ("p", "ul")
 ARTICLE_EFFECTS = ("em", "strong")
+
+DESCRIPTIVE_SCHEMAS_CLASS = "descriptive-schemas"
+VIEW_NAME_PROP = "data-view-name"
+INSTANCE_PROP = "data-instance"
+OBJECT_ID_PROP = "data-object-id"
+VIEW_PROPS = (VIEW_NAME_PROP, INSTANCE_PROP, OBJECT_ID_PROP)
 
 
 class CardReader(object):
@@ -70,18 +81,14 @@ class CardReader(object):
     def read_meta(self, soup: BeautifulSoup) -> Tuple[int, str]:
         ret = -1, "?"
         body = soup.body
-        body_attrs = set(body.attrs.keys())
-        if body_attrs != BODY_ATTRS:
-            self.err("attrs should be exactly %s, not %s", body, BODY_ATTRS, body_attrs)
+        ok, taxo_id_str, instrument_id = check_get_attributes(body, self.err, *BODY_ATTRS)
+        if not ok:
             return ret
-        #
-        taxo_id_str = body.attrs.get(TAXOID_PROP)
         try:
             taxo_id = int(taxo_id_str)
         except ValueError:
             self.err("%s should be an int, not %s", body, TAXOID_PROP, taxo_id_str)
             taxo_id = -1
-        instrument_id = body.attrs.get(INSTRUMENTID_PROP)
         ret = taxo_id, instrument_id
         return ret
 
@@ -92,7 +99,7 @@ class CardReader(object):
             self.err("first elem should be an <article>", soup.body)
             return ret
         # Tag itself
-        check_class(article, MORPHO_CRITERIA_CLASS, self.err)
+        check_only_class_is(article, MORPHO_CRITERIA_CLASS, self.err)
         # Tag content
         children = [a_tag for a_tag in no_blank_ite(article.children)]
         for a_child in children:
@@ -129,17 +136,79 @@ class CardReader(object):
             else:
                 self.err("unexpected content, not a tag or a string", a_content)
 
-    def check_article_list(self, child: Tag):
-        for a_content in no_blank_ite(child.contents):
+    def check_only_some_tags_in(self, parent: Tag, allowed: Iterable[str]) -> List[Tag]:
+        """ TODO: put in specific lib """
+        ret = []
+        for a_content in no_blank_ite(parent.contents):
             if isinstance(a_content, NavigableString):
-                self.err("no free text inside list", a_content)
+                self.err("no free text allowed inside <%s>", a_content, parent.name)
             elif isinstance(a_content, Tag):
-                if a_content.name != "li":
-                    self.err("only <li> inside <lu>, not %s", a_content, a_content.name)
-                    continue
-                self.check_article_paragraph(a_content)
+                if a_content.name in allowed:
+                    ret.append(a_content)
+                else:
+                    en_msg = " or ".join(allowed)
+                    self.err("only %s inside %s, not %s", a_content, en_msg, parent.name, a_content.name)
             else:
                 self.err("unexpected content, not a tag or a string", a_content)
+        return ret
 
-    def read_descriptive_schemas(self, soup: BeautifulSoup) -> OrderedDict[str, Any]:
-        pass
+    def check_article_list(self, child: Tag):
+        found = False
+        for a_li in self.check_only_some_tags_in(child, ('li',)):
+            self.check_article_paragraph(a_li)
+            found = True
+        if not found:
+            self.err("empty list", child)
+
+    def read_descriptive_schemas(self, soup: BeautifulSoup) -> OrderedDictT[ViewNameT, DescriptiveSchema]:
+        ret = OrderedDict()
+        around_div = get_nth_no_blank(soup.body, 1)
+        if not around_div or around_div.name != 'div':
+            self.err("second child should be a <div> with proper class", soup.body)
+            return ret
+        # Tag itself
+        check_only_class_is(around_div, DESCRIPTIVE_SCHEMAS_CLASS, self.err)
+        for an_inside_div in self.check_only_some_tags_in(around_div, ('div',)):
+            ok, view_name, ecotaxa, object_id_str = check_get_attributes(an_inside_div, self.err, *VIEW_PROPS)
+            if not ok:
+                continue
+            try:
+                object_id = int(object_id_str)
+            except ValueError:
+                self.err("%s should be an int, not %s", an_inside_div, OBJECT_ID_PROP, object_id_str)
+                object_id = -1
+            schema = self.read_schema(an_inside_div, ecotaxa, object_id)
+        return ret
+
+    def read_image(self, a_svg: Tag) -> Tuple[bytearray, Rectangle]:
+        """
+            All supporting images come from EcoTaxa and have these attributes.
+        """
+        bin_image = bytearray()
+        crop = Rectangle(0, 0, 100, 100)
+        return bin_image, crop
+
+    def read_schema(self, a_div: Tag, instance: str, object_id: int) -> DescriptiveSchema:
+        # Read what's missing from base class
+        svg = check_get_single_child(a_div, "svg", self.err)
+        image, crop = self.read_image(svg)
+        shapes = self.read_shapes(svg)
+        segments = self.read_segments(svg)
+        zooms = self.read_zooms(svg)
+        ret = DescriptiveSchema(ecotaxa_inst=instance,
+                                object_id=object_id,
+                                image=image,
+                                crop=crop,
+                                shapes=shapes,
+                                segments=segments,
+                                zooms=zooms)
+        return ret
+
+    def read_shapes(self, a_div) -> List[TaxoImageShape]:
+        return []
+
+    def read_segments(self, a_div) -> List[TaxoImageSegment]:
+        return []
+
+    def read_zooms(self, a_div) -> List[ZoomArea]:
+        return []

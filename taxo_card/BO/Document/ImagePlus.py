@@ -57,14 +57,16 @@ class ZoomArea(Rectangle):
 @dataclass
 class SchemaFromImage:
     """
-        Base class for augmented images from EcoTaxa. An image from EcoTaxa.
+        Base class for augmented images from EcoTaxa.
     """
-    # Image reference in EcoTaxa.
+    # EcoTaxa instance, not normalized
+    ecotaxa_inst: str
+    # Image reference in EcoTaxa instance.
     object_id: ObjectIDT
     # Encoded image
     image: bytearray
-    # Zoom & crop
-    zoom_crop: int  # TODO
+    # Zoom & crop, from SVG viewport
+    crop: Rectangle
 
 
 @dataclass

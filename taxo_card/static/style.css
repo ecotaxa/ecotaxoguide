@@ -7,3 +7,14 @@
     color: red;
     content: "Morphological identification criteria";
 }
+
+
+.descriptive-schemas::before {
+    color: blue;
+    content: "Descriptive schemas";
+}
+
+.descriptive-schemas>div::before {
+    content: attr(data-view-name);
+    color: #000;
+}

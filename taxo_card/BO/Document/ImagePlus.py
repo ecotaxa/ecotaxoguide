@@ -3,7 +3,7 @@
 #
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from Providers.EcoTaxa import ObjectIDT
 from BO.app_types import LabelNameT, SegmentNameT, ViewNameT
@@ -50,7 +50,14 @@ class Rectangle:
 class ZoomArea(Rectangle):
     """
         Rectangle for zooming.
-        <rect x="120" y="120" width="100" height="100"/>
+            <rect x="120" y="120" width="100" height="100"/>
+    """
+
+
+class CropArea(Rectangle):
+    """
+        Region of interest in the background image
+            viewBox="100 100 300 300"
     """
 
 
@@ -66,7 +73,7 @@ class SchemaFromImage:
     # Encoded image
     image: bytearray
     # Zoom & crop, from SVG viewport
-    crop: Rectangle
+    crop: Optional[CropArea]
 
 
 @dataclass

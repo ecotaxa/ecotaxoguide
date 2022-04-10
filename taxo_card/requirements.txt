@@ -11,6 +11,8 @@ MarkupSafe==2.1.1
 beautifulsoup4==4.11.0
 # Document validation
 emoji==1.7.0
+svgelements==1.6.12
+Pillow==9.1.0
 # Env
 wheel==0.37.1
 pip==22.0.4

@@ -5,17 +5,19 @@
 #
 from collections import OrderedDict
 from pathlib import Path
-from typing import Tuple, OrderedDict as OrderedDictT, Any, List, Iterable
+from typing import Tuple, OrderedDict as OrderedDictT, Any, List, Iterable, Optional
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag, PageElement, NavigableString
 # noinspection PyUnresolvedReferences
 from emoji.core import is_emoji
+from svgelements import SVG_ATTR_VIEWBOX, Viewbox
 
 from BO.Document.Card import TaxoCard
 from BO.Document.Criteria import IdentificationCriteria
 from BO.Document.ImagePlus import DescriptiveSchema, TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle
 from BO.app_types import ViewNameT
+from Services.SVG import MiniSVG
 from Services.html_utils import check_only_class_is, first_child_tag, no_blank_ite, get_nth_no_blank, \
     check_get_attributes, check_get_single_child
 
@@ -32,6 +34,8 @@ VIEW_NAME_PROP = "data-view-name"
 INSTANCE_PROP = "data-instance"
 OBJECT_ID_PROP = "data-object-id"
 VIEW_PROPS = (VIEW_NAME_PROP, INSTANCE_PROP, OBJECT_ID_PROP)
+
+IMAGE_SVG_CLASS = "background"
 
 
 class CardReader(object):
@@ -180,17 +184,41 @@ class CardReader(object):
             schema = self.read_schema(an_inside_div, ecotaxa, object_id)
         return ret
 
-    def read_image(self, a_svg: Tag) -> Tuple[bytearray, Rectangle]:
+    def read_image(self, a_svg: MiniSVG) -> Tuple[bytearray, Optional[Rectangle]]:
         """
             All supporting images come from EcoTaxa and have these attributes.
         """
-        bin_image = bytearray()
-        crop = Rectangle(0, 0, 100, 100)
+        bg_svg = a_svg.find_background_image_svg(IMAGE_SVG_CLASS, self.err)
+        # Note: the SVG parser eliminates somehow the corrupted images
+        if bg_svg is None:
+            self.err("no <svg><image></svg> found", a_svg.parent)
+            return bytearray([0]), Rectangle(0, 0, 0, 0)
+        svg_image = bg_svg[0]
+        bin_image = svg_image.data
+        svg_image.load()
+        # Validations
+        if (svg_image.width, svg_image.height) != (a_svg.root.width, a_svg.root.height):
+            self.err("width & height differ b/w <svg> and its image (%sx%s)", a_svg.elem, svg_image.width,
+                     svg_image.height)
+        if (svg_image.x, svg_image.y) != (0, 0):
+            self.err("image is not at (0,0)", a_svg.elem)
+        if svg_image.rotation != 0:
+            self.err("image is rotated", a_svg.elem)
+        # Get the crop area
+        viewbox = bg_svg.values.get(SVG_ATTR_VIEWBOX)
+        if viewbox is None:
+            crop = None
+        else:
+            crop = Viewbox(viewbox)
         return bin_image, crop
 
     def read_schema(self, a_div: Tag, instance: str, object_id: int) -> DescriptiveSchema:
         # Read what's missing from base class
-        svg = check_get_single_child(a_div, "svg", self.err)
+        svg_elem = check_get_single_child(a_div, "svg", self.err)
+        if svg_elem is None:
+            self.err("no <svg> at all", a_div)
+            return None
+        svg = MiniSVG(svg_elem)
         image, crop = self.read_image(svg)
         shapes = self.read_shapes(svg)
         segments = self.read_segments(svg)

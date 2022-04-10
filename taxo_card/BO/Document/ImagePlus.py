@@ -1,9 +1,10 @@
 #
 # A taxonomy card document, annotated image inside.
 #
+import abc
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from Providers.EcoTaxa import ObjectIDT
 from BO.app_types import LabelNameT, SegmentNameT, ViewNameT
@@ -23,20 +24,24 @@ from BO.app_types import LabelNameT, SegmentNameT, ViewNameT
 
 class ShapeType(Enum):
     """ The type for shapes laid down onto the image """
-    #   <line id="svg_10" y2="380.088" y1="538.704" x2="351.648" x1="342.648" s
-    #   troke-width="3.168" stroke="#ff0000"
-    LINE = 1
-    #   LINE + marker-end="url(#triangle)"/>
-    SINGLE_ARROW = 2  # Not SVG native
-    #   LINE + marker-start="url(#triangle)" marker-end="url(#triangle)"/>
-    DOUBLE_ARROW = 3  # Not SVG native
-    # <circle stroke="#00b050" ry="29" rx="31" id="svg_2" cy="743.96802" cx="473.48798"
-    # stroke-width="3.168" fill="none" />
-    CIRCLE = 4
     # Paths with  https://developer.mozilla.org/fr/docs/Web/SVG/Tutorial/Paths
     SPLINE = 5  # TODO: Max of points "reasonable" e.g. 20
     SPLINE_SINGLE_ARROW = 6  # Not SVG native
     SPLINE_DOUBLE_ARROW = 7  # Not SVG native
+
+
+class ArrowType(Enum):
+    """ The arrows, for some shapes """
+    NO_ARROW = 0
+    ARROW_START = 1  # An arrow at the origin
+    ARROW_END = 2  # An arrow at the end
+    ARROW_BOTH = 3  # Using the fact that 1+2=3 Lol
+
+
+@dataclass
+class Point:
+    x: int
+    y: int
 
 
 @dataclass
@@ -81,11 +86,47 @@ class TaxoImageShape:
     """
         A shape on the image
     """
-    # Constraints by shape: LINE, SINGLE_ARROW and DOUBLE_ARROW are either vertical or horizontal
-    shape: ShapeType
+    __metaclass__ = abc.ABCMeta
     # The label to which this shape refers
-    kind: LabelNameT
-    # Graphical coordinates TODO
+    label: LabelNameT
+
+
+@dataclass
+class TaxoImageLine(TaxoImageShape):
+    """
+        A line on the image.
+            Can only be vertical or horizontal.
+    """
+    #   <line id="svg_10" y2="380.088" y1="538.704" x2="351.648" x1="342.648"
+    #   stroke-width="3.168" stroke="#ff0000"
+    arrowed: ArrowType
+    #   LINE + marker-end="url(#triangle)"/>
+    # or
+    #   LINE + marker-start="url(#triangle)" marker-end="url(#triangle)"/>
+    # From, To
+    coords: Tuple[Point, Point]
+
+
+@dataclass
+class TaxoImageCircle(TaxoImageShape):
+    """
+        A circle on the image.
+    """
+    # <circle stroke="#00b050" cy="743.96802" cx="473.48798" r="12"
+    # stroke-width="3.168" fill="none" />
+    coords: Tuple[Point, float]  # center, radius
+
+
+@dataclass
+class TaxoImageCurves(TaxoImageShape):
+    """
+        A sequence of curves.
+    """
+    arrowed: ArrowType
+    #  <path data-label="queue" id="svg_15" fill="none"
+    #   d="m469,403c39,-8 61,6 58,-26c-3,-32 -2,-88 36,-47c38,41 52,36 53,5l1,-31"
+    #   opacity="none" stroke-width="3.168" stroke="#00b050" marker-end="url(#triangle)"/>
+    coords: List[Point]
 
 
 @dataclass

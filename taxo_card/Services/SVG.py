@@ -8,7 +8,7 @@ from typing import List, Callable, Optional
 from xml.etree.ElementTree import ParseError
 
 from bs4.element import Tag
-from svgelements import SVG, Image
+from svgelements import SVG, Image, Line, SimpleLine, Circle, Path
 
 SVG_HEADER = """<?xml version="1.0" encoding="utf-8" ?>
 """
@@ -40,15 +40,31 @@ class MiniSVG(object):
             return None
         return ret[0]
 
-    def find_background_image_svg(self, needed_clas:str, log_err: Callable) -> Optional[SVG]:
+    def find_background_image(self, needed_class: str, log_err: Callable) -> Optional[SVG]:
         """ """
         ret = None
         for an_svg in self.root.select(lambda e: isinstance(e, SVG)):
             if len(an_svg) == 1 \
                     and isinstance(an_svg[0], Image) \
-                    and an_svg.values['attributes'].get('class') == "background":
+                    and an_svg.values['attributes'].get('class') == needed_class:
                 if ret is None:
                     ret = an_svg
                 else:
                     log_err("found another image inside svg, when 1 exactly is expected ", self.parent)
         return ret
+
+    def all_by_class(self, clazz):
+        # TODO: Typings might be funny here
+        return [an_elem for an_elem in self.root.select(lambda e: isinstance(e, clazz))]
+
+    def find_lines(self) -> List[SimpleLine]:
+        return self.all_by_class(SimpleLine)
+
+    def find_circles(self) -> List[Circle]:
+        return self.all_by_class(Circle)
+
+    def find_first_level_pathes(self) -> List[Path]:
+        """ Some pathes are used for segments, we need here only the top-level ones """
+        # Loop over top-level group
+        top_group = self.root[0]
+        return [an_elem for an_elem in top_group if isinstance(an_elem, Path)]

@@ -5,17 +5,18 @@
 #
 from collections import OrderedDict
 from pathlib import Path
-from typing import Tuple, OrderedDict as OrderedDictT, Any, List, Iterable, Optional
+from typing import Tuple, OrderedDict as OrderedDictT, List, Iterable, Optional
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag, PageElement, NavigableString
 # noinspection PyUnresolvedReferences
 from emoji.core import is_emoji
-from svgelements import SVG_ATTR_VIEWBOX, Viewbox
+from svgelements import SVG_ATTR_VIEWBOX, Viewbox, SimpleLine, Shape, Circle, Path as SVGPath, Line, Close
 
 from BO.Document.Card import TaxoCard
 from BO.Document.Criteria import IdentificationCriteria
-from BO.Document.ImagePlus import DescriptiveSchema, TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle
+from BO.Document.ImagePlus import DescriptiveSchema, TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle, \
+    TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves
 from BO.app_types import ViewNameT
 from Services.SVG import MiniSVG
 from Services.html_utils import check_only_class_is, first_child_tag, no_blank_ite, get_nth_no_blank, \
@@ -36,6 +37,11 @@ OBJECT_ID_PROP = "data-object-id"
 VIEW_PROPS = (VIEW_NAME_PROP, INSTANCE_PROP, OBJECT_ID_PROP)
 
 IMAGE_SVG_CLASS = "background"
+LABEL_PROP = "data-label"
+
+# Not in svgelements package
+SVG_ATTR_MARKER_START = "marker-start"
+SVG_ATTR_MARKER_END = "marker-end"
 
 
 class CardReader(object):
@@ -188,7 +194,7 @@ class CardReader(object):
         """
             All supporting images come from EcoTaxa and have these attributes.
         """
-        bg_svg = a_svg.find_background_image_svg(IMAGE_SVG_CLASS, self.err)
+        bg_svg = a_svg.find_background_image(IMAGE_SVG_CLASS, self.err)
         # Note: the SVG parser eliminates somehow the corrupted images
         if bg_svg is None:
             self.err("no <svg><image></svg> found", a_svg.parent)
@@ -232,8 +238,100 @@ class CardReader(object):
                                 zooms=zooms)
         return ret
 
-    def read_shapes(self, a_div) -> List[TaxoImageShape]:
-        return []
+    def check_marker(self, top_svg: MiniSVG, src_svg: Shape, marker: str):
+        """ Verify the marker exists and has the right visual properties """
+        marker_def = top_svg.root.get_element_by_url(marker)
+        if marker_def is None:
+            self.err("marker ref '%s' is invalid", top_svg.elem, marker)
+            return
+        if marker_def.values.get("fill") != src_svg.stroke:
+            self.err("marker '%s' fill color differs from referencing svg stroke", top_svg.elem, marker_def.id)
+
+    def arrowed_from_svg(self, top_svg: MiniSVG, svg: Shape):
+        ret = ArrowType.NO_ARROW
+        start_marker = svg.values.get(SVG_ATTR_MARKER_START)
+        if start_marker:
+            ret = ArrowType.ARROW_START
+            self.check_marker(top_svg, svg, start_marker)
+        end_marker = svg.values.get(SVG_ATTR_MARKER_END)
+        if end_marker:
+            ret = ArrowType.ARROW_END if ret == ArrowType.NO_ARROW else ArrowType.ARROW_BOTH
+            self.check_marker(top_svg, svg, end_marker)
+        return ret
+
+    def line_from_svg(self, top_svg: MiniSVG, svg: SimpleLine) -> TaxoImageLine:
+        label = svg.values.get(LABEL_PROP)
+        if label is None:
+            self.err("<line> with no data-label: %s", top_svg.elem, svg.id)
+        arrowed = self.arrowed_from_svg(top_svg, svg)
+        # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough
+        from_point = Point(svg.implicit_x1, svg.implicit_y1)
+        to_point = Point(svg.implicit_x2, svg.implicit_y2)
+        coords = (from_point, to_point)
+        # Ensure either horizontal or vertical. Could compute the angle if constraint is relaxed.
+        area = abs(from_point.x - to_point.x) * (from_point.y - to_point.y)
+        if area != 0:
+            self.err("<line> is not horizontal nor vertical: %s", top_svg.elem, svg.id)
+        ret = TaxoImageLine(label=label,
+                            arrowed=arrowed,
+                            coords=coords)
+        return ret
+
+    def circle_from_svg(self, top_svg: MiniSVG, svg: Circle) -> TaxoImageCircle:
+        label = svg.values.get(LABEL_PROP)
+        if label is None:
+            self.err("<circle> with no data-label: %s", top_svg.elem, svg.id)
+        # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough
+        center = Point(svg.cx, svg.cy)
+        radius = svg.values["r"]
+        coords = (center, radius)
+        ret = TaxoImageCircle(label=label,
+                              coords=coords)
+        return ret
+
+    def path_from_svg(self, top_svg: MiniSVG, svg: SVGPath) -> TaxoImageCurves:
+        label = svg.values.get(LABEL_PROP)
+        if label is None:
+            self.err("first-level <path> with no data-label: %s", top_svg.elem, svg.id)
+        arrowed = self.arrowed_from_svg(top_svg, svg)
+        first_point = svg.first_point  # From "Move" command at the start
+        for a_point in svg.segments()[1:]:
+            if isinstance(a_point, Line):
+                self.err("in %s, curve contains a straight line: %s", top_svg.elem, svg.id, a_point)
+            if isinstance(a_point, Close):
+                self.err("in %s, curve is closed: %s", top_svg.elem, svg.id, a_point)
+            # TODO: Limit to easier-to-control curve e.g. QuadraticBezier?
+        coords = []  # TODO: Roundtrip is KO
+        ret = TaxoImageCurves(label=label,
+                              arrowed=arrowed,
+                              coords=coords)
+        return ret
+
+    def read_shapes(self, a_svg: MiniSVG) -> List[TaxoImageShape]:
+        """
+            Read the various possible shapes, ensure they are consistent.
+        """
+        ret = []
+        widths = set()
+        # Loop over lines
+        lines = a_svg.find_lines()
+        for a_svg_line in lines:
+            widths.add(a_svg_line.stroke_width)
+            shape = self.line_from_svg(a_svg, a_svg_line)
+            ret.append(shape)
+        # Loop over circles
+        circles = a_svg.find_circles()
+        for a_svg_circle in circles:
+            widths.add(a_svg_circle.stroke_width)
+            shape = self.circle_from_svg(a_svg, a_svg_circle)
+            ret.append(shape)
+        # Loop over paths
+        paths = a_svg.find_first_level_pathes()
+        for a_svg_path in paths:
+            widths.add(a_svg_path.stroke_width)
+            shape = self.path_from_svg(a_svg, a_svg_path)
+            ret.append(shape)
+        return ret
 
     def read_segments(self, a_div) -> List[TaxoImageSegment]:
         return []

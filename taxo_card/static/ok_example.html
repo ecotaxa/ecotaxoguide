@@ -39,6 +39,25 @@
                         markerWidth="2" markerHeight="4">
                     <path id="svg_1" d="m0,0l0,4l2,-2l-2,-2z"/>
                 </marker>
+                <symbol id="brace">
+                    <path height="32" fill="none" stroke-width="3" opacity="100"
+                          d="m4,0
+                                  q0,26 90,26
+                                  l100,0
+                                  q90,0 90,-26"
+                          stroke="#00007f"/>
+                </symbol>
+                <symbol id="body_segment" viewBox="0,0,285,64">
+                    <g>
+                        <path fill="none" stroke-width="3" opacity="100"
+                              d="m4,0 q0,26 90,26 l100,0 q90,0 90,-26"
+                              stroke="#00007f" vector-effect="non-scaling-stroke"/>
+                        <text stroke="#00b050" dominant-baseline="hanging" text-anchor="middle" x="50%" y="32"
+                              font-size="1.8em">
+                            BODY
+                        </text>
+                    </g>
+                </symbol>
             </defs>
             <g>
                 <title>Layer 1</title>
@@ -71,19 +90,20 @@
                 <path data-label="queue" id="svg_15" fill="none"
                       d="m469,403c39,-8 61,6 58,-26c-3,-32 -2,-88 36,-47c38,41 52,36 53,5"
                       opacity="none" stroke-width="3" stroke="#00b050" marker-end="url(#triangle#00b050)"/>
-                <rect fill="none" stroke-width="2" stroke="#529D94" x="45" y="34" width="203" height="157"
+                <rect x="45" y="34" width="203" height="157" fill="none" stroke-width="2" stroke-dasharray="2,2"
+                      stroke="#529D94"
                       id="svg_19"/>
-                <svg x="112" y="57" width="300" height="200" viewBox="0 0 200 300">
-                    <g transform="rotate(0)">
-                        <path fill="none" stroke-width="3" opacity="100"
-                              d="m0,0
-                                  q0,26 90,26
-                                  l100,0
-                                  q90,0 90,-26"
-                              id="svg_7" stroke="#00007f" transformXX="rotate(-7.55373 277.671 794.692)"/>
-                        <text stroke="#00b050" x="40" y="120" font-size="2em">ADULT</text>
-                    </g>
-                </svg>
+                <!--                <g transformxx="rotate(-45 540.873 449.048)" id="svg_15">-->
+                <rect x="100" y="40" width="350" height="200" fill="none" stroke-width="2"
+                      stroke="orange"
+                      id="svg_119"/>
+                <!-- The symbol is rendered in the middle of the use -->
+                <use x="100" y="40" width="350" height="200"
+                     xlink:href="#body_segment"/>
+                <use transform="rotate(45,275,140)" x="100" y="40" width="350" height="200"
+                     xlink:href="#body_segment"/>
+                <use transform="rotate(-45,275,140)" x="100" y="40" width="350" height="200"
+                     xlink:href="#body_segment"/>
             </g>
         </svg>
     </div>

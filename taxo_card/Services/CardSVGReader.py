@@ -38,8 +38,8 @@ class CardSVGReader(MiniSVG):
         if marker_def is None:
             self.err("marker ref '%s' is invalid", self.elem, marker)
             return
-        if marker_def.values.get("fill") != src_svg.stroke:
-            self.err("marker '%s' fill color differs from referencing svg stroke", self.elem, marker_def.id)
+        if marker_def.id != src_svg.values.get("data-label", "") + "_triangle":
+            self.err("marker '%s' data-label+'_triangle' differs from referencing svg id", self.elem, marker_def.id)
 
     def arrowed_from_svg(self, svg: Shape):
         """

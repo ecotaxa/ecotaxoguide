@@ -3,10 +3,13 @@
 #
 # Card SVG reader and validator
 #
+from math import radians
 from typing import List, Tuple, Optional, Callable
 
 from bs4.element import Tag
-from svgelements import SVG_ATTR_VIEWBOX, Viewbox, SimpleLine, Shape, Circle, Path as SVGPath, Line, Close
+from svgelements import SVG_ATTR_VIEWBOX, Viewbox, SimpleLine, Shape, Circle, Path as SVGPath, Line, Close, SVGElement, \
+    Group, SVG_ATTR_HEIGHT, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH, Matrix, SVG_ATTR_TRANSFORM, \
+    REGEX_TRANSFORM_TEMPLATE, REGEX_TRANSFORM_PARAMETER, SVG_TRANSFORM_ROTATE
 
 from BO.Document.ImagePlus import TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle, \
     TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves
@@ -111,6 +114,69 @@ class CardSVGReader(MiniSVG):
                               coords=coords)
         return ret
 
+    def segment_from_svg(self, use_svg: SVGElement, symbol_svg: SVGElement, group_svg: Group) -> TaxoImageSegment:
+        label = "?"
+        symbol_id = symbol_svg.id
+        if not symbol_id.endswith("_segment"):
+            self.err("segment %s: xlink %s does end with '_segment'", self.elem, use_svg.id)
+        else:
+            label = symbol_id[:-8]
+        # x, y are stored in a transform, with the rotation
+        # mtrx = Matrix(use_svg.values[SVG_ATTR_TRANSFORM])
+        # width, height = MiniSVG.read_float_attrs(use_svg, SVG_ATTR_WIDTH, SVG_ATTR_HEIGHT)
+        # coords = Rectangle(mtrx.e, mtrx.f, width, height)
+        # check rotation angle
+        ALLOWED_ANGLES = (-45, 0, 45)
+        # for possible_angle in ALLOWED_ANGLES:
+        #     rotated = Matrix(mtrx)
+        #     rotated.pre_rotate(radians(possible_angle))
+        #     vector = rotated.vector()
+        #     if vector.is_identity():
+        #         # Rotation angle was found
+        #         break
+        # else:
+        #     self.err("segment %s: contains a forbidden transform. For rotation, only one of %s is valid", self.elem, use_svg.id,
+        #              ALLOWED_ANGLES)
+        # Move to HTML parser
+        elem = self.find_by_id(use_svg.id)
+        # Extract coords
+        x, y, width, height = MiniSVG.read_html_float_attrs(elem, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH,
+                                                            SVG_ATTR_HEIGHT)
+        coords = Rectangle(x, y, width, height)
+        rotation = 0
+        # Validate rotation
+        transform = elem.attrs.get(SVG_ATTR_TRANSFORM, "")
+        for sub_element in REGEX_TRANSFORM_TEMPLATE.findall(transform):
+            name = sub_element[0]
+            params = tuple(REGEX_TRANSFORM_PARAMETER.findall(sub_element[1]))
+            params = [mag + units for mag, units in params]
+            if name != SVG_TRANSFORM_ROTATE:
+                self.err("in #%s, only rotate, not %s is allowed in transform",
+                         self.elem, use_svg.id, name)
+                continue
+            try:
+                angle, center_x, center_y = [float(x) for x in params]
+            except ValueError:
+                self.err("in #%s rotate, 3 values are expected",
+                         self.elem, use_svg.id)
+                continue
+            if angle not in ALLOWED_ANGLES:
+                self.err("in #%s rotate, angle should be one of %s",
+                         self.elem, use_svg.id, ALLOWED_ANGLES)
+                continue
+            rotation = angle
+            rot_center = (center_x, center_y)
+            expected_rot_center = (coords.x_center(), coords.y_center())
+            if expected_rot_center != rot_center:
+                self.err("in #%s rotate, center should be %s",
+                         self.elem, use_svg.id, expected_rot_center)
+                continue
+
+        ret = TaxoImageSegment(label=label,
+                               coords=coords,
+                               rotation=rotation)
+        return ret
+
     def path_from_svg(self, svg: SVGPath) -> TaxoImageCurves:
         label = svg.values.get(LABEL_PROP)
         if label is None:
@@ -165,7 +231,7 @@ class CardSVGReader(MiniSVG):
         ret = []
         segments = self.find_uses(self.err)
         for a_svg_segment in segments:
-            segment = self.segment_from_svg(a_svg_segment)
+            segment = self.segment_from_svg(*a_svg_segment)
             ret.append(segment)
         return []
 

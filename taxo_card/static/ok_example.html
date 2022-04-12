@@ -26,7 +26,7 @@
         <svg width="727" height="415" xmlns="http://www.w3.org/2000/svg"
              xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full">
             <defs>
-                <!-- markers cannot inherit from using tags -->
+                <!-- markers cannot inherit from the tags using them, so we need a specific marker per color -->
                 <marker id="triangle#ff0000" fill="#ff0000" refY="2" refX="0.1" orient="auto-start-reverse"
                         markerWidth="2" markerHeight="4">
                     <path id="svg_1" d="m0,0l0,4l2,-2l-2,-2z"/>
@@ -39,22 +39,40 @@
                         markerWidth="2" markerHeight="4">
                     <path id="svg_1" d="m0,0l0,4l2,-2l-2,-2z"/>
                 </marker>
+                <!-- generic symbol for the brace -->
                 <symbol id="brace">
-                    <path height="32" fill="none" stroke-width="3" opacity="100"
+                    <path fill="none" stroke-width="3" opacity="100"
                           d="m4,0
                                   q0,26 90,26
                                   l100,0
                                   q90,0 90,-26"
-                          stroke="#00007f"/>
+                          stroke="#00007f" vector-effect="non-scaling-stroke"/>
                 </symbol>
+                <!-- composite symbol for each segment TODO: The 285 below was from dev tools -->
                 <symbol id="body_segment" viewBox="0,0,285,64">
                     <g>
-                        <path fill="none" stroke="#00007f" stroke-width="3" opacity="100"
-                              d="m4,0 q0,26 90,26 l100,0 q90,0 90,-26"
-                               vector-effect="non-scaling-stroke"/>
+                        <use xlink:href="#brace"/>
                         <text stroke="#00b050" dominant-baseline="hanging" text-anchor="middle" x="50%" y="32"
                               font-size="1.8em">
                             BODY
+                        </text>
+                    </g>
+                </symbol>
+                <symbol id="head_segment" viewBox="0,0,285,64">
+                    <g>
+                        <use xlink:href="#brace"/>
+                        <text stroke="#00b050" dominant-baseline="hanging" text-anchor="middle" x="50%" y="32"
+                              font-size="1.8em">
+                            HEAD
+                        </text>
+                    </g>
+                </symbol>
+                <symbol id="tail_segment" viewBox="0,0,285,64">
+                    <g>
+                        <use xlink:href="#brace"/>
+                        <text stroke="#00b050" dominant-baseline="hanging" text-anchor="middle" x="50%" y="32"
+                              font-size="1.8em">
+                            TAIL
                         </text>
                     </g>
                 </symbol>
@@ -93,17 +111,18 @@
                 <rect x="45" y="34" width="203" height="157" fill="none" stroke-width="2" stroke-dasharray="2,2"
                       stroke="#529D94"
                       id="svg_19"/>
-                <!--                <g transformxx="rotate(-45 540.873 449.048)" id="svg_15">-->
                 <rect x="100" y="40" width="350" height="200" fill="none" stroke-width="2"
                       stroke="orange"
                       id="svg_119"/>
                 <!-- The symbol is rendered in the middle of the use -->
-                <use id="svg_18" x="100" y="40" width="350" height="200"
+                <use id="svg_20" transform="rotate(45,200,170)" x="100" y="40" width="300" height="300"
                      xlink:href="#body_segment"/>
-                <use id="svg_19" transform="rotate(45,275,140)" x="100" y="40" width="350" height="200"
-                     xlink:href="#body_segment"/>
-                <use id="svg_20" transform="rotate(-45,275,140)" x="100" y="40" width="350" height="200"
-                     xlink:href="#body_segment"/>
+                <!-- rotation point is center of use rectangle -->
+                <use id="svg_21" x="200" y="40" width="350" height="200"
+                     xlink:href="#head_segment"/>
+                <use id="svg_22" transform="rotate(-45,325,120)"
+                     x="300" y="40" width="350" height="200"
+                     xlink:href="#tail_segment"/>
             </g>
         </svg>
     </div>

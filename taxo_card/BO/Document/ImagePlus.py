@@ -40,16 +40,22 @@ class ArrowType(Enum):
 
 @dataclass
 class Point:
-    x: int
-    y: int
+    x: float
+    y: float
 
 
 @dataclass
 class Rectangle:
-    x: int  # top-left corner
-    y: int
-    width: int
-    height: int
+    x: float  # top-left corner
+    y: float
+    width: float
+    height: float
+
+    def x_center(self):
+        return (self.x + self.width) / 2
+
+    def y_center(self):
+        return (self.y + self.height) / 2
 
 
 class ZoomArea(Rectangle):
@@ -137,8 +143,10 @@ class TaxoImageSegment:
         The segment name is displayed, as text, parallel to the drawing.
     """
     # The segment name
-    kind: SegmentNameT
-    # Graphical coordinates TODO
+    label: SegmentNameT
+    # Graphical coordinates
+    coords: Rectangle
+    rotation: float
 
 
 @dataclass

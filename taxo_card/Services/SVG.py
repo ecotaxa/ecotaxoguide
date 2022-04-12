@@ -4,12 +4,12 @@
 # SVG parser/analyzer
 #
 from io import StringIO
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, Tuple
 from xml.etree.ElementTree import ParseError
 
 from bs4.element import Tag
-from svgelements import SVG, Image, Line, SimpleLine, Circle, Path, SVGElement, SVG_TAG_USE, SVG_ATTR_TAG, SVG_ATTR_ID, \
-    SVG_TAG_GROUP
+from svgelements import SVG, Image, SimpleLine, Circle, Path, SVGElement, SVG_TAG_USE, SVG_ATTR_TAG, SVG_ATTR_ID, \
+    SVG_TAG_GROUP, Group
 
 SVG_HEADER = """<?xml version="1.0" encoding="utf-8" ?>
 """
@@ -81,20 +81,49 @@ class MiniSVG(object):
         top_group = self.root[0]
         return [an_elem for an_elem in top_group if isinstance(an_elem, Path)]
 
-    def find_uses(self, log_err: Callable) -> List[SVGElement]:
-        """ Segments are defined as symbol, then we <use> them """
+    def find_uses(self, log_err: Callable) -> List[Tuple[SVGElement, SVGElement, Group]]:
+        """
+            Segments are defined as symbols, then we <use> them. It makes rotation a single modification, when
+            SVG editors tend to modify all coordinates.
+        """
         top_group = self.root[0]
-        # svgelements keeps the <use> element, then adds the <symbol> one and its content, mimic-ing what happens
-        # in the navigator.
+        # svgelements keeps the <use> element, then adds the <symbol> one and its content,
+        # mimic-ing what happens in the navigator.
+        ret = []
         for idx, svg_elem in enumerate(top_group):
             if get_svg_tag(svg_elem) == SVG_TAG_USE:
-                symbol = top_group[idx + 1]
+                try:
+                    symbol = top_group[idx + 1]
+                except IndexError:
+                    symbol = svg_elem  # Just for generating an error
                 if get_svg_tag(symbol) != SVG_TAG_SYMBOL:
                     log_err("<use> with id %s does not reference a symbol", self.elem, get_svg_id(svg_elem))
                     continue
                 expanded = top_group[idx + 2]
-                if get_svg_tag(expanded) != SVG_TAG_GROUP:
+                if not isinstance(expanded, Group):
                     log_err("<symbol> with id %s is not a group", self.elem, get_svg_id(svg_elem))
                     continue
-                pass
-        return []
+                ret.append((svg_elem, symbol, expanded))
+        return ret
+
+    @staticmethod
+    def read_float_attrs(elem: SVGElement, *args) -> List[float]:
+        ret = []
+        for arg in args:
+            ret.append(float(elem.values[arg]))
+        return ret
+
+    @staticmethod
+    def read_html_float_attrs(elem: Tag, *args) -> List[float]:
+        ret = []
+        for arg in args:
+            try:
+                ret.append(float(elem.attrs[arg]))
+            except KeyError:
+                ret.append(float('NaN'))
+        return ret
+
+    def find_by_id(self, elem_id: str):
+        """ Find in root tag and descendants the elemen by its id """
+        ret = self.elem.find(attrs={"id": elem_id})
+        return ret

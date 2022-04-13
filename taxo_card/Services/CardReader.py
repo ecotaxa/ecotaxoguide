@@ -4,22 +4,23 @@
 # Card reader and validator
 #
 from collections import OrderedDict
+from io import StringIO
 from pathlib import Path
-from typing import Tuple, OrderedDict as OrderedDictT, List, Iterable, Optional
+from typing import Tuple, OrderedDict as OrderedDictT, List, Iterable
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag, PageElement, NavigableString
 # noinspection PyUnresolvedReferences
 from emoji.core import is_emoji
+from svgelements import SVG_TAG_DEFS, SVG_NAME_TAG
 
 from BO.Document.Card import TaxoCard
 from BO.Document.Criteria import IdentificationCriteria
-from BO.Document.ImagePlus import DescriptiveSchema, TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle, \
-    TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves
+from BO.Document.ImagePlus import DescriptiveSchema
 from BO.app_types import ViewNameT
 from Services.CardSVGReader import CardSVGReader
 from Services.html_utils import check_only_class_is, first_child_tag, no_blank_ite, get_nth_no_blank, \
-    check_get_attributes, check_get_single_child
+    check_get_attributes, check_get_single_child, check_only_some_tags_in
 
 TAXOID_PROP = "data-taxoid"
 INSTRUMENTID_PROP = "data-instrumentid"
@@ -27,7 +28,12 @@ BODY_ATTRS = (TAXOID_PROP, INSTRUMENTID_PROP)
 
 MORPHO_CRITERIA_CLASS = "morpho-criteria"
 TOP_LEVEL_ARTICLE = ("p", "ul")
+TAG_NAME_LI = "li"
 ARTICLE_EFFECTS = ("em", "strong")
+
+TAG_NAME_DIV = "div"
+
+TEMPLATES_CLASS = "svg-templates"
 
 DESCRIPTIVE_SCHEMAS_CLASS = "descriptive-schemas"
 VIEW_NAME_PROP = "data-view-name"
@@ -45,6 +51,7 @@ class CardReader(object):
     def __init__(self, path: Path):
         self.path = path
         self.errs = []
+        self.svg_defs = None
 
     def read(self) -> TaxoCard:
         """
@@ -58,6 +65,7 @@ class CardReader(object):
             soup = BeautifulSoup(strm, "html.parser")
         # Read the parts
         taxo_id, instrument_id = self.read_meta(soup)
+        self.svg_defs = self.read_svg_templates(soup)
         identification_criteria = self.read_identification_criteria(soup)
         descriptive_schemas = self.read_descriptive_schemas(soup)
         more_examples = []
@@ -94,9 +102,32 @@ class CardReader(object):
         ret = taxo_id, instrument_id
         return ret
 
+    def read_svg_templates(self, soup: BeautifulSoup) -> Tag:
+        """
+            The section with all reusable SVG parts, i.e. markers and symbols.
+        """
+        ret = BeautifulSoup(StringIO("<defs></defs>"), "html.parser")
+        templates = first_child_tag(soup.body)
+        if templates.name != SVG_NAME_TAG:
+            self.err("first elem in <body> should be a <svg>", templates)
+            return ret
+        # Tag itself
+        check_only_class_is(templates, TEMPLATES_CLASS, self.err)
+        # Tag content
+        children = [a_tag for a_tag in no_blank_ite(templates.children)]
+        if len(children) != 1:
+            self.err("template <svg> should contain 1 tag", templates)
+            return ret
+        defs = children[0]
+        if defs.name != SVG_TAG_DEFS:
+            self.err("template <svg> should contain 1 tag <defs>", templates)
+            return ret
+        # TODO: Check the defs themselves
+        return defs
+
     def read_identification_criteria(self, soup: BeautifulSoup) -> IdentificationCriteria:
         ret = IdentificationCriteria("")
-        article = first_child_tag(soup.body)
+        article = get_nth_no_blank(soup.body, 1)
         if article.name != 'article':
             self.err("first elem should be an <article>", soup.body)
             return ret
@@ -138,39 +169,24 @@ class CardReader(object):
             else:
                 self.err("unexpected content, not a tag or a string", a_content)
 
-    def check_only_some_tags_in(self, parent: Tag, allowed: Iterable[str]) -> List[Tag]:
-        """ TODO: put in specific lib """
-        ret = []
-        for a_content in no_blank_ite(parent.contents):
-            if isinstance(a_content, NavigableString):
-                self.err("no free text allowed inside <%s>", a_content, parent.name)
-            elif isinstance(a_content, Tag):
-                if a_content.name in allowed:
-                    ret.append(a_content)
-                else:
-                    en_msg = " or ".join(allowed)
-                    self.err("only %s inside %s, not %s", a_content, en_msg, parent.name, a_content.name)
-            else:
-                self.err("unexpected content, not a tag or a string", a_content)
-        return ret
-
     def check_article_list(self, child: Tag):
         found = False
-        for a_li in self.check_only_some_tags_in(child, ('li',)):
+        for a_li in check_only_some_tags_in(child, (TAG_NAME_LI,), self.err):
             self.check_article_paragraph(a_li)
             found = True
         if not found:
             self.err("empty list", child)
 
-    def read_descriptive_schemas(self, soup: BeautifulSoup) -> OrderedDictT[ViewNameT, DescriptiveSchema]:
+    def read_descriptive_schemas(self, soup: BeautifulSoup) \
+            -> OrderedDictT[ViewNameT, DescriptiveSchema]:
         ret = OrderedDict()
-        around_div = get_nth_no_blank(soup.body, 1)
+        around_div = get_nth_no_blank(soup.body, 2)
         if not around_div or around_div.name != 'div':
             self.err("second child should be a <div> with proper class", soup.body)
             return ret
         # Tag itself
         check_only_class_is(around_div, DESCRIPTIVE_SCHEMAS_CLASS, self.err)
-        for an_inside_div in self.check_only_some_tags_in(around_div, ('div',)):
+        for an_inside_div in check_only_some_tags_in(around_div, (TAG_NAME_DIV,), self.err):
             ok, view_name, ecotaxa, object_id_str = check_get_attributes(an_inside_div, self.err, *VIEW_PROPS)
             if not ok:
                 continue
@@ -184,11 +200,11 @@ class CardReader(object):
 
     def read_schema(self, a_div: Tag, instance: str, object_id: int) -> DescriptiveSchema:
         # Read what's missing from base class
-        svg_elem = check_get_single_child(a_div, "svg", self.err)
+        svg_elem = check_get_single_child(a_div, SVG_NAME_TAG, self.err)
         if svg_elem is None:
             self.err("no <svg> at all", a_div)
             return None
-        svg_rdr = CardSVGReader(svg_elem, self.err)
+        svg_rdr = CardSVGReader(svg_elem, self.svg_defs, self.err)
         image, crop = svg_rdr.read_image()
         shapes = svg_rdr.read_shapes()
         segments = svg_rdr.read_segments()
@@ -201,5 +217,3 @@ class CardReader(object):
                                 segments=segments,
                                 zooms=zooms)
         return ret
-
-

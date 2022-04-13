@@ -18,3 +18,7 @@
     content: attr(data-view-name);
     color: #000;
 }
+
+.svg-templates {
+    height: 0;
+}

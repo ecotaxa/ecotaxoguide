@@ -28,8 +28,8 @@ class CardSVGReader(MiniSVG):
         Read SVG parts of the card.
     """
 
-    def __init__(self, svg_elem: Tag, err_reporter: Callable):
-        super().__init__(svg_elem)
+    def __init__(self, svg_elem: Tag, svg_defs: Tag, err_reporter: Callable):
+        super().__init__(svg_elem, svg_defs)
         self.err = err_reporter
 
     def check_marker(self, src_svg: Shape, marker: str):
@@ -87,7 +87,7 @@ class CardSVGReader(MiniSVG):
     def line_from_svg(self, svg: SimpleLine) -> TaxoImageLine:
         label = svg.values.get(LABEL_PROP)
         if label is None:
-            self.err("<line> with no data-label: %s", self.elem, svg.id)
+            self.err("<line> with no data-label: #%s", self.elem, svg.id)
         arrowed = self.arrowed_from_svg(svg)
         # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough
         from_point = Point(svg.implicit_x1, svg.implicit_y1)
@@ -96,7 +96,7 @@ class CardSVGReader(MiniSVG):
         # Ensure either horizontal or vertical. Could compute the angle if constraint is relaxed.
         area = abs(from_point.x - to_point.x) * (from_point.y - to_point.y)
         if area != 0:
-            self.err("<line> is not horizontal nor vertical: %s", self.elem, svg.id)
+            self.err("<line> is not horizontal nor vertical: #%s", self.elem, svg.id)
         ret = TaxoImageLine(label=label,
                             arrowed=arrowed,
                             coords=coords)
@@ -105,7 +105,7 @@ class CardSVGReader(MiniSVG):
     def circle_from_svg(self, svg: Circle) -> TaxoImageCircle:
         label = svg.values.get(LABEL_PROP)
         if label is None:
-            self.err("<circle> with no data-label: %s", self.elem, svg.id)
+            self.err("<circle> with no data-label: #%s", self.elem, svg.id)
         # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough.
         center = Point(svg.cx, svg.cy)
         radius = svg.values["r"]
@@ -118,7 +118,7 @@ class CardSVGReader(MiniSVG):
         label = "?"
         symbol_id = symbol_svg.id
         if not symbol_id.endswith("_segment"):
-            self.err("segment %s: xlink %s does end with '_segment'", self.elem, use_svg.id)
+            self.err("segment #%s: xlink %s does end with '_segment'", self.elem, use_svg.id)
         else:
             label = symbol_id[:-8]
         # x, y are stored in a transform, with the rotation
@@ -168,8 +168,8 @@ class CardSVGReader(MiniSVG):
             rot_center = (center_x, center_y)
             expected_rot_center = (coords.x_center(), coords.y_center())
             if expected_rot_center != rot_center:
-                self.err("in #%s rotate, center should be %s",
-                         self.elem, use_svg.id, expected_rot_center)
+                self.err("in #%s rotate, center should be %s not %s",
+                         self.elem, use_svg.id, expected_rot_center, rot_center)
                 continue
 
         ret = TaxoImageSegment(label=label,

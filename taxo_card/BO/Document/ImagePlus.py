@@ -52,10 +52,10 @@ class Rectangle:
     height: float
 
     def x_center(self):
-        return (self.x + self.width) / 2
+        return self.x + self.width / 2
 
     def y_center(self):
-        return (self.y + self.height) / 2
+        return self.y + self.height / 2
 
 
 class ZoomArea(Rectangle):

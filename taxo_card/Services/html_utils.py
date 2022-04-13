@@ -1,7 +1,7 @@
 #
 # bs4-based tuility defs
 #
-from typing import Callable, Set, Optional
+from typing import Callable, Set, Optional, Iterable, List
 
 from bs4.element import Tag, NavigableString, Comment
 
@@ -34,6 +34,22 @@ def check_only_class_is(a_tag: Tag, expected_class: str, log_err: Callable) -> b
     return True
 
 
+def check_only_some_tags_in(parent: Tag, allowed: Iterable[str], log_err: Callable) -> List[Tag]:
+    ret = []
+    for a_content in no_blank_ite(parent.contents):
+        if isinstance(a_content, NavigableString):
+            log_err("no free text allowed inside <%s>", a_content, parent.name)
+        elif isinstance(a_content, Tag):
+            if a_content.name in allowed:
+                ret.append(a_content)
+            else:
+                en_msg = " or ".join(allowed)
+                log_err("only %s inside %s, not %s", a_content, en_msg, parent.name, a_content.name)
+        else:
+            log_err("unexpected content, not a tag or a string", a_content)
+    return ret
+
+
 def next_non_blank(tag) -> Tag:
     next_tag = tag.next_element
     while next_tag in ('\n',):
@@ -53,6 +69,7 @@ def no_blank_ite(elem_list):
 
 
 def get_nth_no_blank(elem_list, n):
+    """ Use the usual 0-based convention """
     ite = no_blank_ite(elem_list)
     try:
         elem = next(ite)

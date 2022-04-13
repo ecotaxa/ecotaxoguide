@@ -35,10 +35,14 @@ class MiniSVG(object):
         <svg> but programmatic. Well, just what we need...
     """
 
-    def __init__(self, svg_elem: Tag):
+    def __init__(self, svg_elem: Tag, svg_defs: Tag):
+        """ Init from a svg chunk referencing defs which are elsewhere, i.e. document global """
+        # Inject the defs for the validation
+        svg_elem.insert(0, svg_defs)
         self.elem = svg_elem
         self.parent = svg_elem.parent
-        to_parse = SVG_HEADER + str(svg_elem)
+        svg_elem_text = str(svg_elem)
+        to_parse = SVG_HEADER + svg_elem_text
         try:
             self.root: SVG = SVG.parse(StringIO(to_parse))
         except ParseError:

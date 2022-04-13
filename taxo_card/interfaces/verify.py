@@ -16,7 +16,9 @@ def check_file(path: str) -> List[str]:
 
 def main():
     no_err = check_file(OK_FILE)
-    assert no_err == [], "There are errors in the valid document "+str(no_err)
+    if no_err != []:
+        print("Errors in ref:\n -" + "\n -".join(no_err))
+        assert False, "There are errors in the valid document "
     some_err = check_file(KO_FILE)
     print("Some errors:\n -" + "\n -".join(some_err))
 

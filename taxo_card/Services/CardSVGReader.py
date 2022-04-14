@@ -3,13 +3,13 @@
 #
 # Card SVG reader and validator
 #
-from math import radians
 from typing import List, Tuple, Optional, Callable
 
 from bs4.element import Tag
 from svgelements import SVG_ATTR_VIEWBOX, Viewbox, SimpleLine, Shape, Circle, Path as SVGPath, Line, Close, SVGElement, \
-    Group, SVG_ATTR_HEIGHT, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH, Matrix, SVG_ATTR_TRANSFORM, \
-    REGEX_TRANSFORM_TEMPLATE, REGEX_TRANSFORM_PARAMETER, SVG_TRANSFORM_ROTATE
+    Group, SVG_ATTR_HEIGHT, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH, SVG_ATTR_TRANSFORM, \
+    REGEX_TRANSFORM_TEMPLATE, REGEX_TRANSFORM_PARAMETER, SVG_TRANSFORM_ROTATE, SVG_ATTR_STROKE, SVG_ATTR_STROKE_WIDTH, \
+    SVG_ATTR_STROKE_OPACITY, SVG_ATTR_STYLE, SVG_ATTR_FILL, SVG_ATTR_FILL_OPACITY
 
 from BO.Document.ImagePlus import TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle, \
     TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves
@@ -18,9 +18,15 @@ from Services.SVG import MiniSVG
 # Not in svgelements package
 SVG_ATTR_MARKER_START = "marker-start"
 SVG_ATTR_MARKER_END = "marker-end"
+SVG_ATTR_OPACITY = "opacity"
 
 IMAGE_SVG_CLASS = "background"
 LABEL_PROP = "data-label"
+
+SHOULD_BE_IN_STYLE_ATTRS = {SVG_ATTR_STROKE, SVG_ATTR_STROKE_OPACITY, SVG_ATTR_STROKE_WIDTH,
+                            SVG_ATTR_FILL, SVG_ATTR_FILL_OPACITY,
+                            SVG_ATTR_OPACITY,
+                            SVG_ATTR_STYLE}
 
 
 class CardSVGReader(MiniSVG):
@@ -84,9 +90,13 @@ class CardSVGReader(MiniSVG):
             crop = Viewbox(viewbox)
         return bin_image, crop
 
-    def check_no_presentation(self, svg):
-        """ Ensure that elements are not styles locally, should use the defs and styles """
-        self.err("TODO no stroke %s", self.elem, svg.id)
+    def check_no_presentation(self, svg: SVGElement):
+        """ Ensure that elements are not styled locally, should use the defs and styles """
+        present_attrs = set(self.find_in_DOM(svg).attrs)
+        present_but_forbidden = present_attrs.intersection(SHOULD_BE_IN_STYLE_ATTRS)
+        if len(present_but_forbidden) > 0:
+            self.err("forbidden attribute(s) for #%s (should be in class definition): %s", self.elem, svg.id,
+                     present_but_forbidden)
 
     def line_from_svg(self, svg: SimpleLine) -> TaxoImageLine:
         label = svg.values.get(LABEL_PROP)
@@ -111,6 +121,7 @@ class CardSVGReader(MiniSVG):
         label = svg.values.get(LABEL_PROP)
         if label is None:
             self.err("<circle> with no data-label: #%s", self.elem, svg.id)
+        self.check_no_presentation(svg)
         # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough.
         center = Point(svg.cx, svg.cy)
         radius = svg.values["r"]
@@ -126,6 +137,7 @@ class CardSVGReader(MiniSVG):
             self.err("segment #%s: xlink %s does end with '_segment'", self.elem, use_svg.id)
         else:
             label = symbol_id[:-8]
+        self.check_no_presentation(use_svg)
         # x, y are stored in a transform, with the rotation
         # mtrx = Matrix(use_svg.values[SVG_ATTR_TRANSFORM])
         # width, height = MiniSVG.read_float_attrs(use_svg, SVG_ATTR_WIDTH, SVG_ATTR_HEIGHT)
@@ -205,28 +217,21 @@ class CardSVGReader(MiniSVG):
             Read the various possible shapes, ensure they are consistent.
         """
         ret = []
-        widths = set()
         # Loop over lines
         lines = self.find_lines()
         for a_svg_line in lines:
-            widths.add(a_svg_line.stroke_width)
             shape = self.line_from_svg(a_svg_line)
             ret.append(shape)
         # Loop over circles
         circles = self.find_circles()
         for a_svg_circle in circles:
-            widths.add(a_svg_circle.stroke_width)
             shape = self.circle_from_svg(a_svg_circle)
             ret.append(shape)
         # Loop over paths
         paths = self.find_first_level_pathes()
         for a_svg_path in paths:
-            widths.add(a_svg_path.stroke_width)
             shape = self.path_from_svg(a_svg_path)
             ret.append(shape)
-        # Cross shapes check
-        if len(widths) != 1:
-            self.err("all shapes do not have the same 'stroke_width'", self.elem)
         return ret
 
     def read_segments(self) -> List[TaxoImageSegment]:

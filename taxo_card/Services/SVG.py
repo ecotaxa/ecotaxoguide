@@ -9,7 +9,7 @@ from xml.etree.ElementTree import ParseError
 
 from bs4.element import Tag
 from svgelements import SVG, Image, SimpleLine, Circle, Path, SVGElement, SVG_TAG_USE, SVG_ATTR_TAG, SVG_ATTR_ID, \
-    SVG_TAG_GROUP, Group
+    Group
 
 SVG_HEADER = """<?xml version="1.0" encoding="utf-8" ?>
 """
@@ -127,7 +127,17 @@ class MiniSVG(object):
                 ret.append(float('NaN'))
         return ret
 
-    def find_by_id(self, elem_id: str):
-        """ Find in root tag and descendants the elemen by its id """
+    def find_by_id(self, elem_id: str) -> Tag:
+        """
+            Find in root tag and descendants the element by its id.
+        """
         ret = self.elem.find(attrs={"id": elem_id})
+        return ret
+
+    # noinspection PyPep8Naming
+    def find_in_DOM(self, svg: SVGElement) -> Tag:
+        """
+            Find the counterpart in the ordinary DOM of the SVG element.
+        """
+        ret = self.elem.find(attrs={"id": svg.id})
         return ret

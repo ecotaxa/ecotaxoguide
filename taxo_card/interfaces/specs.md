@@ -54,8 +54,8 @@ La fiche est au format HTML5. La correspondance entre les différentes parties d
 | Bloc     | Document             | Obligatoire |
 |----------|----------------------|-------------|
 | Metadata | data-* dans `<body>` | Oui         |
-|          |                      |             |
-|          |                      |             |
+|Morphological identification criteria| `<article class="morpho-criteria">` | Oui         |
+|Descriptive schemas|`<div class="descriptive-schemas">`| Oui         |
 |          |                      |             |
 |          |                      |             |
 |          |                      |             |

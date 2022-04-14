@@ -84,10 +84,15 @@ class CardSVGReader(MiniSVG):
             crop = Viewbox(viewbox)
         return bin_image, crop
 
+    def check_no_presentation(self, svg):
+        """ Ensure that elements are not styles locally, should use the defs and styles """
+        self.err("TODO no stroke %s", self.elem, svg.id)
+
     def line_from_svg(self, svg: SimpleLine) -> TaxoImageLine:
         label = svg.values.get(LABEL_PROP)
         if label is None:
             self.err("<line> with no data-label: #%s", self.elem, svg.id)
+        self.check_no_presentation(svg)
         arrowed = self.arrowed_from_svg(svg)
         # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough
         from_point = Point(svg.implicit_x1, svg.implicit_y1)

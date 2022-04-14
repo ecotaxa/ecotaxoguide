@@ -204,6 +204,10 @@ class CardReader(object):
         if svg_elem is None:
             self.err("no <svg> at all", a_div)
             return None
+        # No defs inside the schema
+        no_defs = svg_elem.find(SVG_TAG_DEFS)
+        if no_defs is not None:
+            self.err("<defs> should be grouped in a single doc-level <svg>", no_defs)
         svg_rdr = CardSVGReader(svg_elem, self.svg_defs, self.err)
         image, crop = svg_rdr.read_image()
         shapes = svg_rdr.read_shapes()

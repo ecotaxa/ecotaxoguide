@@ -5,31 +5,11 @@
     <title></title>
     <!-- Global styles which do not depend on content -->
     <link rel="stylesheet" href="style.css"/>
-</head>
-<body data-taxoid=74144 data-instrumentid="Zooscan">
-<article class="morpho-criteria">
-    <p>Céphalothorax très développé
-        (commence à avoir la forme de petit crabe)</p>
-    <!-- A FAIRE -->
-    <p>Grands yeux noirs pédonculés</p>
-    <p>Abdomen <strong>très</strong> fin (pleon)</p>
-    <p>Péréiopodes <em>très développés</em></p>
-    <p>Présence d’un pléon avec pattes et telson.</p>
-    <p>Points à vérifier:</p>
-    <ul>
-        <li>point 1</li>
-        <li>point 2</li>
-        <li>dernier point <em>si possible</em></li>
-    </ul>
-</article>
-<div class="descriptive-schemas">
-    <div data-view-name="frontal" data-instance="vlfr" data-object-id="76456">
-        <svg width="727" height="415" xmlns="http://www.w3.org/2000/svg"
-             xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full">
-            <style>
-                line, path, circle {
-                    stroke-width: 3;
-                }
+    <!-- Content specific styles -->
+    <style>
+        line, path, circle {
+            stroke-width: 3;
+        }
 
         [data-label="protoconch"] {
             stroke: blue;
@@ -129,7 +109,7 @@
                   vector-effect="non-scaling-stroke"/>
         </symbol>
         <!-- composite symbol for each possible segment TODO: The 285 below was from dev tools -->
-        <symbol id="body_segment" >
+        <symbol id="body_segment">
             <g class="segment">
                 <use xlink:href="#brace"/>
                 <text x="50%" y="50%">BODY</text>
@@ -196,7 +176,7 @@
                 <use id="svg_22" transform="rotate(-45,475,72)"
                      x="300" y="40" width="350" height="64" xlink:href="#tail_segment"/>
                 <use id="svg_23" transform="rotate(45 432 182.0)"
-                       x="257" y="150" width="350" height="64" xlink:href="#tail_segment"/>
+                     x="257" y="150" width="350" height="64" xlink:href="#tail_segment"/>
                 <use id="svg_24" transform="rotate(0 399.5 182.0)"
                      x="257" y="150" width="285" height="64" xlink:href="#tail_segment"/>
                 <use transform="rotate(0 480.5 293.0)" xlink:href="#tail_segment"

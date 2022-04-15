@@ -40,6 +40,9 @@ Conséquences pratiques:
 - L'éditeur ne sera utilisé que sur des PC de bureau. On peut donc se réduire aux résolutions d'écran >= 1024x768 (XGA).
   On peut également supposer la présence d'une souris standard, par exemple pour faire des actions sur click long ou
   bouton droit.
+- On peut supposer que les dernières versions des navigateurs courants sont utilisés pour l'édition.
+- Les blocs SVG sont minimalistes. Par exemple, alors qu'il est possible de faire tourner une flêche avec
+  un `transform=(rotate...` , l'éditeur devra plutôt en modifier les extrémités.
 
 # Formats de fichiers
 

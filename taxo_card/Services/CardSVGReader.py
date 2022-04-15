@@ -9,13 +9,12 @@ from typing import List, Tuple, Optional, Callable, Set
 from bs4.element import Tag
 from svgelements import SVG_ATTR_VIEWBOX, Viewbox, SimpleLine, Shape, Circle, Path as SVGPath, Line, Close, SVGElement, \
     Group, SVG_ATTR_HEIGHT, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH, SVG_ATTR_TRANSFORM, \
-    REGEX_TRANSFORM_TEMPLATE, REGEX_TRANSFORM_PARAMETER, SVG_TRANSFORM_ROTATE, SVG_ATTR_STROKE, SVG_ATTR_STROKE_WIDTH, \
-    SVG_ATTR_STROKE_OPACITY, SVG_ATTR_STYLE, SVG_ATTR_FILL, SVG_ATTR_FILL_OPACITY, SVG_TAG_LINE, SVG_TAG_PATH, \
+    SVG_TAG_LINE, SVG_TAG_PATH, \
     SVG_TAG_CIRCLE, SVG_TAG_TITLE, SVG_NAME_TAG, SVG_TAG_USE, Move, Arc, SVG_ATTR_DATA, SVG_ATTR_X1, SVG_ATTR_Y1, \
     SVG_ATTR_X2, SVG_ATTR_Y2, SVG_ATTR_RADIUS, SVG_ATTR_CENTER_Y, SVG_ATTR_CENTER_X, SVG_ATTR_ID
 
 from BO.Document.ImagePlus import TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle, \
-    TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves
+    TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves, CropArea
 from Services.SVG import MiniSVG
 from Services.html_utils import check_only_class_is, get_nth_no_blank, no_blank_ite, get_id, IndexedElemListT
 
@@ -40,6 +39,7 @@ OPTIONAL_ATTRS_IN_ARROWABLE = {SVG_ATTR_MARKER_START, SVG_ATTR_MARKER_END}
 MANDATORY_ATTRS_IN_CIRCLE = {SVG_ATTR_ID, LABEL_PROP, SVG_ATTR_RADIUS, SVG_ATTR_CENTER_X, SVG_ATTR_CENTER_Y}
 MANDATORY_ATTRS_IN_SEGMENT = {SVG_ATTR_ID, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH, SVG_ATTR_HEIGHT, SVG_ATTR_XREF}
 OPTIONAL_ATTRS_IN_SEGMENT = {SVG_ATTR_TRANSFORM}
+MANDATORY_ATTRS_IN_IMAGE_SVG = {"class", SVG_ATTR_ID}
 
 MAX_PARTS_IN_CURVE = 16
 
@@ -94,7 +94,16 @@ class CardSVGReader(MiniSVG):
             self.check_marker(elem, svg, end_marker)
         return ret
 
-    def read_image(self, svg_group: IndexedElemListT) -> Tuple[bytearray, Optional[Rectangle]]:
+    def read_crop(self) -> Optional[CropArea]:
+        # Get the crop area, it's in the top SVG
+        viewbox = self.root.values.get(SVG_ATTR_VIEWBOX.lower())
+        if viewbox is None:
+            return None
+        else:
+            vb = Viewbox(viewbox)
+            return CropArea(vb.x, vb.y, vb.width, vb.height)
+
+    def read_image(self, svg_group: IndexedElemListT) -> bytearray:
         """
             All supporting images come from EcoTaxa and have these attributes.
         """
@@ -104,32 +113,38 @@ class CardSVGReader(MiniSVG):
                 svgs_inside_svg.append(self.root.get_element_by_id(a_svg_id))
         bg_svg = None
         if len(svgs_inside_svg) != 1:
-            self.err("an image is expected", self.elem)
+            self.err("an image <svg> is expected", self.elem)
         else:
             bg_svg = svgs_inside_svg[0]
-        # bg_svg = self.find_background_image(IMAGE_SVG_CLASS, self.err)
         # Note: the SVG parser eliminates somehow the corrupted images
-        if bg_svg is None or len(bg_svg) == 0:
-            self.err("no <svg><image></svg> found", self.parent)
+        if bg_svg is None or len(bg_svg) != 1:
+            self.err("no or too many <svg><image></svg> found", self.parent)
             return bytearray([0]), Rectangle(0, 0, 0, 0)
+        # OK we have _the_ image
         svg_image = bg_svg[0]
+        # Get its XHTML counterpart
+        image_elem = svg_group.get(bg_svg.id)
+        # Check it
+        self.check_attrs(image_elem, MANDATORY_ATTRS_IN_IMAGE_SVG)
         bin_image = svg_image.data
         svg_image.load()
+        pil_image = svg_image.image
+        # Check dimensions as they form the base of the coordinates system
+        top_svg_size = (self.root.width, self.root.height)
+        svg_inside_svg_size = (svg_image.width, svg_image.height)
+        pil_image_size = (pil_image.width, pil_image.height)
         # Validations
-        if (svg_image.width, svg_image.height) != (self.root.width, self.root.height):
-            self.err("width & height differ b/w <svg> and its image (%sx%s)", self.elem, svg_image.width,
-                     svg_image.height)
+        if pil_image_size != top_svg_size:
+            self.err("size differs b/w top <svg> %s and physical image %s", self.elem,
+                     top_svg_size, pil_image_size)
+        if pil_image_size != svg_inside_svg_size:
+            self.err("size differs b/w child <svg> %s and physical image %s", self.elem,
+                     svg_inside_svg_size, pil_image_size)
         if (svg_image.x, svg_image.y) != (0, 0):
             self.err("image is not at (0,0)", self.elem)
         if svg_image.rotation != 0:
             self.err("image is rotated", self.elem)
-        # Get the crop area
-        viewbox = bg_svg.values.get(SVG_ATTR_VIEWBOX)
-        if viewbox is None:
-            crop = None
-        else:
-            crop = Viewbox(viewbox)
-        return bin_image, crop
+        return bin_image
 
     def line_from_svg(self, elem: Tag, svg: SimpleLine) -> TaxoImageLine:
         self.check_attrs(elem, MANDATORY_ATTRS_IN_LINE, OPTIONAL_ATTRS_IN_ARROWABLE)

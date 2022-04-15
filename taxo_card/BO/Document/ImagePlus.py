@@ -83,7 +83,7 @@ class SchemaFromImage:
     object_id: ObjectIDT
     # Encoded image
     image: bytearray
-    # Zoom & crop, from SVG viewport
+    # Crop, i.e. both zoom and pan, from SVG viewBox
     crop: Optional[CropArea]
 
 

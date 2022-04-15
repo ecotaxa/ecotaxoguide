@@ -186,16 +186,22 @@ class CardReader(object):
             return ret
         # Tag itself
         check_only_class_is(around_div, DESCRIPTIVE_SCHEMAS_CLASS, self.err)
+        view_names = set()
         for an_inside_div in check_only_some_tags_in(around_div, (TAG_NAME_DIV,), self.err):
             ok, view_name, ecotaxa, object_id_str = check_and_get_attributes(an_inside_div, self.err, *VIEW_PROPS)
             if not ok:
+                self.err("mandatory attributes %s are invalid", an_inside_div, VIEW_PROPS)
                 continue
             try:
                 object_id = int(object_id_str)
             except ValueError:
                 self.err("%s should be an int, not %s", an_inside_div, OBJECT_ID_PROP, object_id_str)
                 object_id = -1
+            if view_name in view_names:
+                self.err("view name '%s' was already used", an_inside_div, view_name)
+            view_names.add(view_name)
             schema = self.read_schema(an_inside_div, ecotaxa, object_id)
+            ret[view_name] = schema
         return ret
 
     def read_schema(self, a_div: Tag, instance: str, object_id: int) -> DescriptiveSchema:
@@ -209,8 +215,9 @@ class CardReader(object):
         if no_defs is not None:
             self.err("<defs> should be grouped in a single doc-level <svg>", no_defs)
         svg_rdr = CardSVGReader(svg_elem, self.svg_defs, self.err)
+        crop = svg_rdr.read_crop()
         shapes_group = svg_rdr.read_shapes_group()
-        image, crop = svg_rdr.read_image(shapes_group)
+        image = svg_rdr.read_image(shapes_group)
         shapes = svg_rdr.read_shapes(shapes_group)
         segments = svg_rdr.read_segments(shapes_group)
         zooms = svg_rdr.read_zooms()

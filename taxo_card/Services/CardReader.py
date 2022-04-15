@@ -6,7 +6,7 @@
 from collections import OrderedDict
 from io import StringIO
 from pathlib import Path
-from typing import Tuple, OrderedDict as OrderedDictT, List, Iterable
+from typing import Tuple, OrderedDict as OrderedDictT
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag, PageElement, NavigableString
@@ -20,7 +20,7 @@ from BO.Document.ImagePlus import DescriptiveSchema
 from BO.app_types import ViewNameT
 from Services.CardSVGReader import CardSVGReader
 from Services.html_utils import check_only_class_is, first_child_tag, no_blank_ite, get_nth_no_blank, \
-    check_get_attributes, check_get_single_child, check_only_some_tags_in
+    check_and_get_attributes, check_get_single_child, check_only_some_tags_in
 
 TAXOID_PROP = "data-taxoid"
 INSTRUMENTID_PROP = "data-instrumentid"
@@ -91,7 +91,7 @@ class CardReader(object):
     def read_meta(self, soup: BeautifulSoup) -> Tuple[int, str]:
         ret = -1, "?"
         body = soup.body
-        ok, taxo_id_str, instrument_id = check_get_attributes(body, self.err, *BODY_ATTRS)
+        ok, taxo_id_str, instrument_id = check_and_get_attributes(body, self.err, *BODY_ATTRS)
         if not ok:
             return ret
         try:
@@ -187,7 +187,7 @@ class CardReader(object):
         # Tag itself
         check_only_class_is(around_div, DESCRIPTIVE_SCHEMAS_CLASS, self.err)
         for an_inside_div in check_only_some_tags_in(around_div, (TAG_NAME_DIV,), self.err):
-            ok, view_name, ecotaxa, object_id_str = check_get_attributes(an_inside_div, self.err, *VIEW_PROPS)
+            ok, view_name, ecotaxa, object_id_str = check_and_get_attributes(an_inside_div, self.err, *VIEW_PROPS)
             if not ok:
                 continue
             try:
@@ -209,9 +209,10 @@ class CardReader(object):
         if no_defs is not None:
             self.err("<defs> should be grouped in a single doc-level <svg>", no_defs)
         svg_rdr = CardSVGReader(svg_elem, self.svg_defs, self.err)
-        image, crop = svg_rdr.read_image()
-        shapes = svg_rdr.read_shapes()
-        segments = svg_rdr.read_segments()
+        shapes_group = svg_rdr.read_shapes_group()
+        image, crop = svg_rdr.read_image(shapes_group)
+        shapes = svg_rdr.read_shapes(shapes_group)
+        segments = svg_rdr.read_segments(shapes_group)
         zooms = svg_rdr.read_zooms()
         ret = DescriptiveSchema(ecotaxa_inst=instance,
                                 object_id=object_id,

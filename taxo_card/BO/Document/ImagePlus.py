@@ -109,8 +109,8 @@ class TaxoImageLine(TaxoImageShape):
     #   LINE + marker-end="url(#triangle)"/>
     # or
     #   LINE + marker-start="url(#triangle)" marker-end="url(#triangle)"/>
-    # From, To
-    coords: Tuple[Point, Point]
+    # IMPORTANT: The optional final arrow is _outside_ the coordinates.
+    coords: Tuple[Point, Point]  # From, To
 
 
 @dataclass
@@ -132,7 +132,8 @@ class TaxoImageCurves(TaxoImageShape):
     #  <path data-label="queue" id="svg_15" fill="none"
     #   d="m469,403c39,-8 61,6 58,-26c-3,-32 -2,-88 36,-47c38,41 52,36 53,5l1,-31"
     #   opacity="none" stroke-width="3.168" stroke="#00b050" marker-end="url(#triangle)"/>
-    coords: List[Point]
+    origin: Point
+    moves: str  # the SVG path in full, redundant with the origin above
 
 
 @dataclass
@@ -145,6 +146,7 @@ class TaxoImageSegment:
     # The segment name
     label: SegmentNameT
     # Graphical coordinates
+    # IMPORTANT: Following SVG, the rectangle encloses the segment when rotation is 0.
     coords: Rectangle
     rotation: float
 

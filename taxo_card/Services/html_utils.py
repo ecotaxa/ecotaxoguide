@@ -1,15 +1,22 @@
 #
 # bs4-based tuility defs
 #
-from typing import Callable, Set, Optional, Iterable, List
+from typing import Callable, Set, Optional, Iterable, List, OrderedDict
 
 from bs4.element import Tag, NavigableString, Comment
 
 CLASS_ATTR = "class"
 JUST_CLASS = {"class"}
+ID_ATTR = "id"
+
+IndexedElemListT = OrderedDict[str, Tag]
 
 
-def check_get_attributes(a_tag: Tag, log_err: Callable, *args):
+def get_id(a_tag: Tag):
+    return a_tag.attrs.get(ID_ATTR)
+
+
+def check_and_get_attributes(a_tag: Tag, log_err: Callable, *args):
     tag_attrs = set(a_tag.attrs.keys())
     if set(args) != tag_attrs:
         log_err("attrs should be exactly %s, not %s", a_tag, args, tag_attrs)

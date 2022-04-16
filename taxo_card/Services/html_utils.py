@@ -28,7 +28,7 @@ def check_and_get_attributes(a_tag: Tag, log_err: Callable, *args):
 def check_only_class_is(a_tag: Tag, expected_class: str, log_err: Callable) -> bool:
     tag_attrs: Set = set(a_tag.attrs.keys())
     if tag_attrs != JUST_CLASS:
-        log_err("attrs should be just %s, not %s", a_tag, JUST_CLASS, tag_attrs)
+        log_err("attrs should be exactly %s, not %s", a_tag, JUST_CLASS, tag_attrs)
         return False
     class_vals = a_tag.attrs[CLASS_ATTR]
     if len(class_vals) != 1:
@@ -36,7 +36,7 @@ def check_only_class_is(a_tag: Tag, expected_class: str, log_err: Callable) -> b
         return False
     class_val = class_vals[0]
     if class_val != expected_class:
-        log_err("class should be %s, not %s", a_tag, expected_class, class_val)
+        log_err("class should be '%s', not '%s'", a_tag, expected_class, class_val)
         return False
     return True
 

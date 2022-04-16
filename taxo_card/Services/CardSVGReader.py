@@ -11,7 +11,8 @@ from svgelements import SVG_ATTR_VIEWBOX, Viewbox, SimpleLine, Shape, Circle, Pa
     Group, SVG_ATTR_HEIGHT, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH, SVG_ATTR_TRANSFORM, \
     SVG_TAG_LINE, SVG_TAG_PATH, \
     SVG_TAG_CIRCLE, SVG_TAG_TITLE, SVG_NAME_TAG, SVG_TAG_USE, Move, Arc, SVG_ATTR_DATA, SVG_ATTR_X1, SVG_ATTR_Y1, \
-    SVG_ATTR_X2, SVG_ATTR_Y2, SVG_ATTR_RADIUS, SVG_ATTR_CENTER_Y, SVG_ATTR_CENTER_X, SVG_ATTR_ID
+    SVG_ATTR_X2, SVG_ATTR_Y2, SVG_ATTR_RADIUS, SVG_ATTR_CENTER_Y, SVG_ATTR_CENTER_X, SVG_ATTR_ID, SVG_TAG_GROUP, \
+    SVG_TAG_RECT, Rect
 
 from BO.Document.ImagePlus import TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle, \
     TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves, CropArea
@@ -27,6 +28,7 @@ SVG_ATTR_XREF = "xlink:href"
 IMAGE_SVG_CLASS = "background"
 LABEL_PROP = "data-label"
 SHAPES_GROUP_CLASS = "shapes"
+ZOOMS_GROUP_CLASS = "zooms"
 
 SEGMENT_ROTATION_VALID_ANGLES = (-90, -45, 0, 45, 90)
 
@@ -41,6 +43,7 @@ MANDATORY_ATTRS_IN_SEGMENT = {SVG_ATTR_ID, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDT
 OPTIONAL_ATTRS_IN_SEGMENT = {SVG_ATTR_TRANSFORM}
 MANDATORY_ATTRS_IN_IMAGE_SVG = {"class", SVG_ATTR_ID}
 OPTIONAL_ATTRS_IN_IMAGE_SVG = {SVG_ATTR_WIDTH, SVG_ATTR_HEIGHT}
+MANDATORY_ATTRS_IN_ZOOM = {SVG_ATTR_ID, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH, SVG_ATTR_HEIGHT}
 
 MAX_PARTS_IN_CURVE = 16
 
@@ -104,6 +107,27 @@ class CardSVGReader(MiniSVG):
             vb = Viewbox(viewbox)
             return CropArea(vb.x, vb.y, vb.width, vb.height)
 
+    def read_groups(self) -> List[Optional[Tag]]:
+        """
+            Read and validate the groups <g> inside self. Return None for each missing group.
+        """
+        ret = [a_tag for a_tag in no_blank_ite(self.elem.children)
+               if a_tag.name == SVG_TAG_GROUP]
+        nb_groups = len(ret)
+        if not (0 < nb_groups <= 2):
+            self.err("invalid number of groups %d in <svg>", self.elem, nb_groups)
+            return [None, None]
+        # Shapes are in the <g class="shapes">, which is the first group
+        if not check_only_class_is(ret[0], SHAPES_GROUP_CLASS, self.err):
+            ret[0] = None
+        # Zooms are following
+        if nb_groups == 2:
+            if not check_only_class_is(ret[1], ZOOMS_GROUP_CLASS, self.err):
+                ret[1] = None
+        else:
+            ret.append(None)
+        return ret
+
     def read_image(self, svg_group: IndexedElemListT, crop: CropArea) -> bytearray:
         """
             All supporting images come from EcoTaxa and have these attributes.
@@ -160,7 +184,8 @@ class CardSVGReader(MiniSVG):
         self.check_attrs(elem, MANDATORY_ATTRS_IN_LINE, OPTIONAL_ATTRS_IN_ARROWABLE)
         label = svg.values.get(LABEL_PROP)
         arrowed = self.arrowed_from_svg(elem, svg)
-        # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough
+        # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough,
+        # but so far we prevent any transform.
         from_point = Point(svg.implicit_x1, svg.implicit_y1)
         to_point = Point(svg.implicit_x2, svg.implicit_y2)
         coords = (from_point, to_point)
@@ -258,17 +283,13 @@ class CardSVGReader(MiniSVG):
                                rotation=angle)
         return ret
 
-    def read_shapes_group(self) -> IndexedElemListT:
+    def read_shapes_group(self, group: Tag) -> IndexedElemListT:
         """
             Read the group with shapes, validate it and return _potentially_ interesting SVG elements.
         """
         ret = OrderedDict()
-
-        # Shapes are in the <g class="shapes">, which is the first group
-        html_group = get_nth_no_blank(self.elem, 1)
-        check_only_class_is(html_group, SHAPES_GROUP_CLASS, self.err)
         # Loop over XHTML children
-        for a_child in no_blank_ite(html_group.children):
+        for a_child in no_blank_ite(group.children):
             child_id = get_id(a_child)
             if a_child.name == SVG_TAG_TITLE:
                 # OK to not have id
@@ -315,5 +336,25 @@ class CardSVGReader(MiniSVG):
                 ret.append(segment)
         return []
 
-    def read_zooms(self) -> List[ZoomArea]:
-        return []
+    def zoom_from_svg(self, elem: Tag, svg: Rect) -> ZoomArea:
+        """
+            A zoom is a <rect> because the dedicated <view> SVG tag doesn't work in Safari.
+        """
+        self.check_attrs(elem, MANDATORY_ATTRS_IN_ZOOM)
+        ret = ZoomArea(x=svg.x, y=svg.y, width=svg.width, height=svg.height)
+        return ret
+
+    def read_zooms(self, group: Tag) -> List[ZoomArea]:
+        ret = []
+        # Loop over XHTML children
+        for a_child in no_blank_ite(group.children):
+            child_id = get_id(a_child)
+            if a_child.name == SVG_TAG_RECT:
+                if child_id is None:
+                    self.err("id= is missing", a_child)
+                    continue
+                a_svg = self.root.get_element_by_id(child_id)
+                ret.append(self.zoom_from_svg(a_child, a_svg))
+            else:
+                self.err("unexpected tag", a_child)
+        return ret

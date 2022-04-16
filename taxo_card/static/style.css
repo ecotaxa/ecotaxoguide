@@ -15,7 +15,7 @@
 }
 
 .descriptive-schemas>div::before {
-    // For the proof of concept only, as the ::before is realy not-styled basic text
+    /* For the proof of concept only, as the ::before is realy not-styled basic text */
     content: attr(data-view-name);
     color: #000;
 }

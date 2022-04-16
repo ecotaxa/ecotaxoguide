@@ -6,7 +6,7 @@
 from collections import OrderedDict
 from io import StringIO
 from pathlib import Path
-from typing import Tuple, OrderedDict as OrderedDictT
+from typing import Tuple, OrderedDict as OrderedDictT, List
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag, PageElement, NavigableString
@@ -15,12 +15,14 @@ from emoji.core import is_emoji
 from svgelements import SVG_TAG_DEFS, SVG_NAME_TAG
 
 from BO.Document.Card import TaxoCard
+from BO.Document.Confusion import PossibleConfusion
 from BO.Document.Criteria import IdentificationCriteria
-from BO.Document.ImagePlus import DescriptiveSchema
+from BO.Document.ImagePlus import DescriptiveSchema, SchemaWithShapes
+from BO.Document.WebLink import CommentedLink
 from BO.app_types import ViewNameT
 from Services.CardSVGReader import CardSVGReader
 from Services.html_utils import check_only_class_is, first_child_tag, no_blank_ite, get_nth_no_blank, \
-    check_and_get_attributes, check_get_single_child, check_only_some_tags_in
+    check_and_get_attributes, check_get_single_child, check_only_some_tags_in, MaybeTagT, no_blank_children, CLASS_ATTR
 
 TAXOID_PROP = "data-taxoid"
 INSTRUMENTID_PROP = "data-instrumentid"
@@ -41,7 +43,13 @@ INSTANCE_PROP = "data-instance"
 OBJECT_ID_PROP = "data-object-id"
 VIEW_PROPS = (VIEW_NAME_PROP, INSTANCE_PROP, OBJECT_ID_PROP)
 
+MORE_EXAMPLES_CLASS = "more-examples"
+PHOTOS_AND_FIGURES_CLASS = "photos-and-figures"
+CONFUSIONS_CLASS = "possible-confusions"
+OPTIONAL_CLASSES = [MORE_EXAMPLES_CLASS, PHOTOS_AND_FIGURES_CLASS, CONFUSIONS_CLASS]
 
+
+# noinspection PyTypeChecker
 class CardReader(object):
     """
         Read a card from HTML into memory.
@@ -58,19 +66,21 @@ class CardReader(object):
             Read the HTML file and return the card.
             Errors found during parsing are stored in self.errs.
             The returned value could be anything if any error was reported.
-            Not all possible problems are managed.
+            Not all possible problems are managed, i.e. python exception -> invalid.
         """
         # Full HTML in mem
         with open(self.path) as strm:
             soup = BeautifulSoup(strm, "html.parser")
         # Read the parts
         taxo_id, instrument_id = self.read_meta(soup)
-        self.svg_defs = self.read_svg_templates(soup)
-        identification_criteria = self.read_identification_criteria(soup)
-        descriptive_schemas = self.read_descriptive_schemas(soup)
-        more_examples = []
-        photos_and_figures = []
-        confusions = []
+        defs_svg, ident_article, schemas_div, examples_div, photos_div, confusions_div = \
+            self.read_body(soup)
+        self.svg_defs = self.read_svg_templates(defs_svg)
+        identification_criteria = self.read_identification_criteria(ident_article)
+        descriptive_schemas = self.read_descriptive_schemas(schemas_div)
+        more_examples = self.read_more_examples(examples_div)
+        photos_and_figures = self.read_photos_and_figures(photos_div)
+        confusions = self.read_confusions(confusions_div)
         ret: TaxoCard = TaxoCard(taxo_id=taxo_id,
                                  instrument_id=instrument_id,
                                  identification_criteria=identification_criteria,
@@ -102,19 +112,56 @@ class CardReader(object):
         ret = taxo_id, instrument_id
         return ret
 
-    def read_svg_templates(self, soup: BeautifulSoup) -> Tag:
+    def read_body(self, soup: BeautifulSoup) -> \
+            Tuple[MaybeTagT, MaybeTagT, MaybeTagT, MaybeTagT, MaybeTagT, MaybeTagT]:
+        """
+            Read & validate what's in <body>.
+        """
+        ret: List[MaybeTagT] = [None, None, None, None, None, None]
+        body_children = no_blank_children(soup.body)
+        if len(body_children) < 3:
+            self.err("<body> needs at least 3 children", soup.body)
+        mandatory_names = [SVG_NAME_TAG, 'article', TAG_NAME_DIV]
+        mandatory_classes = [TEMPLATES_CLASS, MORPHO_CRITERIA_CLASS, DESCRIPTIVE_SCHEMAS_CLASS]
+        mandatory_words = ['first', 'second', 'third']
+        for num_child, a_child, name, class_, word in zip(range(3), body_children,
+                                                          mandatory_names, mandatory_classes, mandatory_words):
+            if a_child.name != name:
+                self.err("%s elem in <body> should be a <%s>", a_child, word, name)
+                # Not even the good name, skip as the parsing will fail
+                continue
+            check_only_class_is(a_child, class_, self.err)  # Issue an error but keep the element
+            ret[num_child] = a_child
+        # Optional parts, in order
+        expected_classes = list(OPTIONAL_CLASSES)
+        for chld_idx, a_child in enumerate(body_children[3:]):
+            if a_child.name != TAG_NAME_DIV:
+                self.err("elem %d in <body> should be a <%s>", a_child, chld_idx, TAG_NAME_DIV)
+                continue
+            child_classes = a_child.attrs.get(CLASS_ATTR)
+            if len(child_classes) != 1:
+                self.err("elem %d in <body> should have a single class <%s>", a_child, chld_idx, TAG_NAME_DIV)
+                continue
+            child_class = child_classes[0]
+            while expected_classes and expected_classes[0] != child_class:
+                expected_classes = expected_classes[1:]
+            if not expected_classes:
+                self.err("unexpected <div> with class '%s'", a_child, child_class)
+                break
+            ret[6 - len(expected_classes)] = a_child
+            expected_classes = expected_classes[1:]
+
+        return tuple(ret)
+
+    def read_svg_templates(self, templates: MaybeTagT) -> Tag:
         """
             The section with all reusable SVG parts, i.e. markers and symbols.
         """
         ret = BeautifulSoup(StringIO("<defs></defs>"), "html.parser")
-        templates = first_child_tag(soup.body)
-        if templates.name != SVG_NAME_TAG:
-            self.err("first elem in <body> should be a <svg>", templates)
+        if templates is None:
             return ret
-        # Tag itself
-        check_only_class_is(templates, TEMPLATES_CLASS, self.err)
         # Tag content
-        children = [a_tag for a_tag in no_blank_ite(templates.children)]
+        children = no_blank_children(templates)
         if len(children) != 1:
             self.err("template <svg> should contain 1 tag", templates)
             return ret
@@ -125,16 +172,11 @@ class CardReader(object):
         # TODO: Check the defs themselves
         return defs
 
-    def read_identification_criteria(self, soup: BeautifulSoup) -> IdentificationCriteria:
-        ret = IdentificationCriteria("")
-        article = get_nth_no_blank(soup.body, 1)
-        if article.name != 'article':
-            self.err("first elem should be an <article>", soup.body)
-            return ret
-        # Tag itself
-        check_only_class_is(article, MORPHO_CRITERIA_CLASS, self.err)
+    def read_identification_criteria(self, article: MaybeTagT) -> IdentificationCriteria:
+        if article is None:
+            return IdentificationCriteria("")
         # Tag content
-        children = [a_tag for a_tag in no_blank_ite(article.children)]
+        children = no_blank_children(article)
         for a_child in children:
             if a_child.name not in TOP_LEVEL_ARTICLE:
                 self.err("elem not allowed (should be one of %s)", a_child, TOP_LEVEL_ARTICLE)
@@ -177,17 +219,14 @@ class CardReader(object):
         if not found:
             self.err("empty list", child)
 
-    def read_descriptive_schemas(self, soup: BeautifulSoup) \
+    def read_descriptive_schemas(self, schemas_div: MaybeTagT) \
             -> OrderedDictT[ViewNameT, DescriptiveSchema]:
         ret = OrderedDict()
-        around_div = get_nth_no_blank(soup.body, 2)
-        if not around_div or around_div.name != 'div':
-            self.err("second child should be a <div> with proper class", soup.body)
+        if schemas_div is None:
             return ret
-        # Tag itself
-        check_only_class_is(around_div, DESCRIPTIVE_SCHEMAS_CLASS, self.err)
+        # Loop into div
         view_names = set()
-        for an_inside_div in check_only_some_tags_in(around_div, (TAG_NAME_DIV,), self.err):
+        for an_inside_div in check_only_some_tags_in(schemas_div, (TAG_NAME_DIV,), self.err):
             ok, view_name, ecotaxa, object_id_str = check_and_get_attributes(an_inside_div, self.err, *VIEW_PROPS)
             if not ok:
                 self.err("mandatory attributes %s are invalid", an_inside_div, VIEW_PROPS)
@@ -202,6 +241,11 @@ class CardReader(object):
             view_names.add(view_name)
             schema = self.read_schema(an_inside_div, ecotaxa, object_id)
             ret[view_name] = schema
+        return ret
+
+    def read_more_examples(self, more_examples_div: MaybeTagT) \
+            -> List[SchemaWithShapes]:
+        ret = []
         return ret
 
     def read_schema(self, a_div: Tag, instance: str, object_id: int) -> DescriptiveSchema:
@@ -234,3 +278,9 @@ class CardReader(object):
                                 segments=segments,
                                 zooms=zooms)
         return ret
+
+    def read_photos_and_figures(self, photos_div: MaybeTagT) -> List[CommentedLink]:
+        pass
+
+    def read_confusions(self, confusions_div: MaybeTagT) -> List[PossibleConfusion]:
+        pass

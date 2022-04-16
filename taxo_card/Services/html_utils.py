@@ -1,7 +1,7 @@
 #
 # bs4-based tuility defs
 #
-from typing import Callable, Set, Optional, Iterable, List, OrderedDict
+from typing import Callable, Set, Optional, Iterable, List, OrderedDict, Generator
 
 from bs4.element import Tag, NavigableString, Comment
 
@@ -10,6 +10,7 @@ JUST_CLASS = {"class"}
 ID_ATTR = "id"
 
 IndexedElemListT = OrderedDict[str, Tag]
+MaybeTagT = Optional[Tag]
 
 
 def get_id(a_tag: Tag):
@@ -64,7 +65,7 @@ def next_non_blank(tag) -> Tag:
     return next_tag
 
 
-def no_blank_ite(elem_list):
+def no_blank_ite(elem_list) -> Generator[Tag, None, None]:
     """ Go thru the list/iterator but return only tags and visible CTEXTs """
     for an_elem in elem_list:
         if isinstance(an_elem, Comment):
@@ -73,6 +74,10 @@ def no_blank_ite(elem_list):
             if an_elem.isspace():
                 continue
         yield an_elem
+
+
+def no_blank_children(elem: Tag) -> List[Tag]:
+    return [a_tag for a_tag in no_blank_ite(elem.children)]
 
 
 def get_nth_no_blank(elem_list, n):

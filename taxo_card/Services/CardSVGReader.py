@@ -35,6 +35,7 @@ SEGMENT_ROTATION_VALID_ANGLES = (-90, -45, 0, 45, 90)
 OK_TAGS_IN_SHAPE = {SVG_TAG_LINE, SVG_TAG_PATH, SVG_TAG_CIRCLE,
                     SVG_NAME_TAG, SVG_TAG_USE}
 
+MANDATORY_ATTRS_IN_TOP_SVG = {"xmlns", 'viewbox', 'xmlns:xlink', 'version', 'baseprofile'}
 MANDATORY_ATTRS_IN_LINE = {SVG_ATTR_ID, LABEL_PROP, SVG_ATTR_X1, SVG_ATTR_Y1, SVG_ATTR_X2, SVG_ATTR_Y2}
 MANDATORY_ATTRS_IN_CURVES = {SVG_ATTR_ID, LABEL_PROP, SVG_ATTR_DATA}
 OPTIONAL_ATTRS_IN_ARROWABLE = {SVG_ATTR_MARKER_START, SVG_ATTR_MARKER_END}
@@ -66,11 +67,12 @@ class CardSVGReader(MiniSVG):
         if marker_def.id != src_svg.values.get("data-label", "") + "_triangle":
             self.err("marker '%s' data-label+'_triangle' differs from referencing svg id", elem, marker_def.id)
 
-    def check_attrs(self, elem: Tag, mandatory: Set, optional: Optional[Set] = None):
+    def check_attrs(self, elem: Tag, mandatory: Set, optional: Optional[Set] = None) -> bool:
         """
             Check the attributes, all mandatory ones should be there, optional ones _can_ be present,
             the rest is errored.
         """
+        ret = True
         if optional is None:
             optional = set()
         present_attrs = set(elem.attrs)
@@ -78,10 +80,13 @@ class CardSVGReader(MiniSVG):
         if len(mandatory_not_present) > 0:
             self.err("mandatory attribute(s) missing: %s", elem,
                      mandatory_not_present)
+            ret = False
         should_be_none = present_attrs.difference(mandatory).difference(optional)
         if len(should_be_none) > 0:
             self.err("forbidden attribute(s) (should e.g. be in class definition): %s", elem,
                      should_be_none)
+            ret = False
+        return ret
 
     def arrowed_from_svg(self, elem: Tag, svg: Shape):
         """
@@ -98,14 +103,13 @@ class CardSVGReader(MiniSVG):
             self.check_marker(elem, svg, end_marker)
         return ret
 
-    def read_crop(self) -> Optional[CropArea]:
-        # Get the crop area, it's in the top SVG
+    def read_crop(self) -> CropArea:
+        if not self.check_attrs(self.elem, MANDATORY_ATTRS_IN_TOP_SVG):
+            return CropArea(0, 0, 100, 100)
+        # Get the crop area, it's in the top SVG and mandatory
         viewbox = self.root.values.get(SVG_ATTR_VIEWBOX.lower())
-        if viewbox is None:
-            return None
-        else:
-            vb = Viewbox(viewbox)
-            return CropArea(vb.x, vb.y, vb.width, vb.height)
+        vb = Viewbox(viewbox)
+        return CropArea(vb.x, vb.y, vb.width, vb.height)
 
     def read_groups(self) -> List[Optional[Tag]]:
         """
@@ -144,7 +148,7 @@ class CardSVGReader(MiniSVG):
         # Note: the SVG parser eliminates somehow the corrupted images
         if bg_svg is None or len(bg_svg) != 1:
             self.err("no or too many <svg><image></svg> found", self.parent)
-            return bytearray([0]), Rectangle(0, 0, 0, 0)
+            return bytearray([0])
         # OK we have _the_ image
         svg_image = bg_svg[0]
         # Get its XHTML counterpart
@@ -157,13 +161,9 @@ class CardSVGReader(MiniSVG):
         # Check dimensions as they form the base of the coordinates system
         image_elem_width, image_elem_height = float(image_elem.attrs.get(SVG_ATTR_WIDTH, "0")), \
                                               float(image_elem.attrs.get(SVG_ATTR_HEIGHT, "0"))
-        top_svg_size = (self.root.width, self.root.height)
         svg_inside_svg_size = (svg_image.width, svg_image.height)
         pil_image_size = (pil_image.width, pil_image.height)
         # Validations
-        if pil_image_size != top_svg_size:
-            self.err("size differs b/w top <svg> %s and physical image %s", self.elem,
-                     top_svg_size, pil_image_size)
         if pil_image_size != svg_inside_svg_size:
             self.err("size differs b/w child <svg> %s and physical image %s", self.elem,
                      svg_inside_svg_size, pil_image_size)
@@ -171,13 +171,20 @@ class CardSVGReader(MiniSVG):
             self.err("image is not at (0,0)", self.elem)
         if svg_image.rotation != 0:
             self.err("image is rotated", self.elem)
-        if crop is not None:
+        bg_actual_size = (image_elem_width, image_elem_height)
+
+        crop_shift = (crop.x, crop.y)
+        if crop_shift != (0, 0):
             # The background svg must be enlarged by the crop position
-            bg_should_size = (self.root.width + crop.x, self.root.height + crop.y)
-            bg_actual_size = (image_elem_width, image_elem_height)
+            bg_should_size = (svg_image.width + crop.x, svg_image.height + crop.y)
             if bg_should_size != bg_actual_size:
-                self.err("child <svg> should be shifted by crop position, giving %s", image_elem,
+                self.err("child <svg> is not shifted by crop position, giving %s", image_elem,
                          bg_should_size)
+        else:
+            # No need to position the background svg
+            if (image_elem_width, image_elem_height) != (0, 0):
+                self.err("child <svg> is shifted when no crop position", image_elem)
+
         return bin_image
 
     def line_from_svg(self, elem: Tag, svg: SimpleLine) -> TaxoImageLine:

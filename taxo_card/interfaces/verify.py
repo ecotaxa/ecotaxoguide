@@ -18,7 +18,7 @@ def main():
     no_err = check_file(OK_FILE)
     if no_err != []:
         print("Errors in ref:\n -" + "\n -".join(no_err))
-        assert False, "There are errors in the valid document "
+        assert False, "There are errors in the valid document."
     some_err = check_file(KO_FILE)
     print("Some errors:\n -" + "\n -".join(some_err))
 

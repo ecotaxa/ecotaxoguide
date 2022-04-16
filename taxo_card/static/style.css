@@ -14,12 +14,36 @@
     content: "Descriptive schemas";
 }
 
-.descriptive-schemas>div::before {
-    /* For the proof of concept only, as the ::before is realy not-styled basic text */
+.descriptive-schemas > div::before {
+    /* For the proof of concept only, as the ::before is really not-styled basic text */
     content: attr(data-view-name);
     color: #000;
 }
 
+.descriptive-schemas > div {
+    max-width: 600px;
+}
+
 .svg-templates {
     height: 0;
+}
+
+.more-examples::before {
+    color: magenta;
+    content: "More examples";
+}
+
+.more-examples > div::before {
+    /* For the proof of concept only, as the ::before is really not-styled basic text */
+    content: attr(data-view-name);
+    color: #000;
+}
+
+.more-examples > div {
+    /*min-width: 300px;*/
+    /*min-height: 300px;*/
+    /*background-color: magenta;*/
+    /*height: 200px;*/
+    max-width: 200px;
+    border:1px solid black;
 }

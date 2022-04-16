@@ -9,26 +9,6 @@ from typing import List, Optional, Tuple
 from Providers.EcoTaxa import ObjectIDT
 from BO.app_types import LabelNameT, SegmentNameT, ViewNameT
 
-#
-# From https://stackoverflow.com/questions/16664584/changing-an-svg-markers-color-css
-# it seems that markers cannot (yet) follow their parent color. So we have to define a marker
-# for each arrow color.
-"""
- <defs>
-  <marker refY="2" refX="0.1" orient="auto-start-reverse" markerWidth="2" markerHeight="4" id="triangle">
-   <path id="svg_1" fill="green" d="m0,0l0,4l2,-2l-2,-2z"/>
-  </marker>
- </defs>
- """
-
-
-class ShapeType(Enum):
-    """ The type for shapes laid down onto the image """
-    # Paths with  https://developer.mozilla.org/fr/docs/Web/SVG/Tutorial/Paths
-    SPLINE = 5  # TODO: Max of points "reasonable" e.g. 20
-    SPLINE_SINGLE_ARROW = 6  # Not SVG native
-    SPLINE_DOUBLE_ARROW = 7  # Not SVG native
-
 
 class ArrowType(Enum):
     """ The arrows, for some shapes """
@@ -40,12 +20,14 @@ class ArrowType(Enum):
 
 @dataclass
 class Point:
+    # Coordinates are in the background image space
     x: float
     y: float
 
 
 @dataclass
 class Rectangle:
+    # Coordinates are in the background image space
     x: float  # top-left corner
     y: float
     width: float
@@ -110,6 +92,7 @@ class TaxoImageLine(TaxoImageShape):
     # or
     #   LINE + marker-start="url(#triangle)" marker-end="url(#triangle)"/>
     # IMPORTANT: The optional final arrow is _outside_ the coordinates.
+    # Coordinates are in the background image space
     coords: Tuple[Point, Point]  # From, To
 
 
@@ -120,6 +103,7 @@ class TaxoImageCircle(TaxoImageShape):
     """
     # <circle stroke="#00b050" cy="743.96802" cx="473.48798" r="12"
     # stroke-width="3.168" fill="none" />
+    # Coordinates are in the background image space
     coords: Tuple[Point, float]  # center, radius
 
 
@@ -133,6 +117,7 @@ class TaxoImageCurves(TaxoImageShape):
     #   d="m469,403c39,-8 61,6 58,-26c-3,-32 -2,-88 36,-47c38,41 52,36 53,5l1,-31"
     #   opacity="none" stroke-width="3.168" stroke="#00b050" marker-end="url(#triangle)"/>
     origin: Point
+    # Coordinates are in the background image space
     moves: str  # the SVG path in full, redundant with the origin above
 
 
@@ -147,6 +132,7 @@ class TaxoImageSegment:
     label: SegmentNameT
     # Graphical coordinates
     # IMPORTANT: Following SVG, the rectangle encloses the segment when rotation is 0.
+    # Coordinates are in the background image space
     coords: Rectangle
     rotation: float
 

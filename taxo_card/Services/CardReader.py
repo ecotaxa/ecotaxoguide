@@ -217,7 +217,7 @@ class CardReader(object):
         svg_rdr = CardSVGReader(svg_elem, self.svg_defs, self.err)
         crop = svg_rdr.read_crop()
         shapes_group = svg_rdr.read_shapes_group()
-        image = svg_rdr.read_image(shapes_group)
+        image = svg_rdr.read_image(shapes_group, crop)
         shapes = svg_rdr.read_shapes(shapes_group)
         segments = svg_rdr.read_segments(shapes_group)
         zooms = svg_rdr.read_zooms()

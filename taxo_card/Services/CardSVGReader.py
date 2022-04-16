@@ -40,6 +40,7 @@ MANDATORY_ATTRS_IN_CIRCLE = {SVG_ATTR_ID, LABEL_PROP, SVG_ATTR_RADIUS, SVG_ATTR_
 MANDATORY_ATTRS_IN_SEGMENT = {SVG_ATTR_ID, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH, SVG_ATTR_HEIGHT, SVG_ATTR_XREF}
 OPTIONAL_ATTRS_IN_SEGMENT = {SVG_ATTR_TRANSFORM}
 MANDATORY_ATTRS_IN_IMAGE_SVG = {"class", SVG_ATTR_ID}
+OPTIONAL_ATTRS_IN_IMAGE_SVG = {SVG_ATTR_WIDTH, SVG_ATTR_HEIGHT}
 
 MAX_PARTS_IN_CURVE = 16
 
@@ -103,7 +104,7 @@ class CardSVGReader(MiniSVG):
             vb = Viewbox(viewbox)
             return CropArea(vb.x, vb.y, vb.width, vb.height)
 
-    def read_image(self, svg_group: IndexedElemListT) -> bytearray:
+    def read_image(self, svg_group: IndexedElemListT, crop: CropArea) -> bytearray:
         """
             All supporting images come from EcoTaxa and have these attributes.
         """
@@ -125,11 +126,13 @@ class CardSVGReader(MiniSVG):
         # Get its XHTML counterpart
         image_elem = svg_group.get(bg_svg.id)
         # Check it
-        self.check_attrs(image_elem, MANDATORY_ATTRS_IN_IMAGE_SVG)
+        self.check_attrs(image_elem, MANDATORY_ATTRS_IN_IMAGE_SVG, OPTIONAL_ATTRS_IN_IMAGE_SVG)
         bin_image = svg_image.data
         svg_image.load()
         pil_image = svg_image.image
         # Check dimensions as they form the base of the coordinates system
+        image_elem_width, image_elem_height = float(image_elem.attrs.get(SVG_ATTR_WIDTH, "0")), \
+                                              float(image_elem.attrs.get(SVG_ATTR_HEIGHT, "0"))
         top_svg_size = (self.root.width, self.root.height)
         svg_inside_svg_size = (svg_image.width, svg_image.height)
         pil_image_size = (pil_image.width, pil_image.height)
@@ -144,6 +147,13 @@ class CardSVGReader(MiniSVG):
             self.err("image is not at (0,0)", self.elem)
         if svg_image.rotation != 0:
             self.err("image is rotated", self.elem)
+        if crop is not None:
+            # The background svg must be enlarged by the crop position
+            bg_should_size = (self.root.width + crop.x, self.root.height + crop.y)
+            bg_actual_size = (image_elem_width, image_elem_height)
+            if bg_should_size != bg_actual_size:
+                self.err("child <svg> should be shifted by crop position, giving %s", image_elem,
+                         bg_should_size)
         return bin_image
 
     def line_from_svg(self, elem: Tag, svg: SimpleLine) -> TaxoImageLine:

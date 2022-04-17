@@ -40,10 +40,29 @@
 }
 
 .more-examples > div {
-    /*min-width: 300px;*/
-    /*min-height: 300px;*/
-    /*background-color: magenta;*/
-    /*height: 200px;*/
+    /* Setting the width sizes the SVG */
     max-width: 200px;
+    border:1px solid black;
+}
+
+.photos-and-figures::before {
+    color: rgba(36, 117, 98, 0.93);
+    content: "Photos and figures";
+}
+
+.possible-confusions::before {
+    color: magenta;
+    content: "Possible confusions";
+}
+
+.possible-confusions > div::before {
+    /* For the proof of concept only, as the ::before is really not-styled basic text */
+    content: attr(data-view-name);
+    color: #000;
+}
+
+.possible-confusions > div {
+    /* Setting the width sizes the SVG */
+    max-width: 250px;
     border:1px solid black;
 }

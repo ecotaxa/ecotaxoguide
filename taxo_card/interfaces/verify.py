@@ -21,6 +21,7 @@ def main():
         assert False, "There are errors in the valid document."
     some_err = check_file(KO_FILE)
     print("Some errors:\n -" + "\n -".join(some_err))
+    print(" Total: ", len(some_err))
 
 
 if __name__ == '__main__':

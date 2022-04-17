@@ -219,15 +219,10 @@ class CardReader(object):
         if not found:
             self.err("empty list", child)
 
-    def read_descriptive_schemas(self, schemas_div: MaybeTagT) \
-            -> OrderedDictT[ViewNameT, DescriptiveSchema]:
-        ret = OrderedDict()
-        if schemas_div is None:
-            return ret
-        # Loop into div
-        view_names = set()
+    def read_schema_divs(self, schemas_div: Tag) -> List[Tuple[Tag, str, str, int]]:
+        """ Read the HTML divs inside and validate the refs """
+        ret = []
         for an_inside_div in check_only_some_tags_in(schemas_div, (TAG_NAME_DIV,), self.err):
-            #
             ok, view_name, ecotaxa, object_id_str = check_and_get_attributes(an_inside_div, self.err, *VIEW_PROPS)
             if not ok:
                 self.err("mandatory attributes %s are invalid", an_inside_div, VIEW_PROPS)
@@ -236,12 +231,22 @@ class CardReader(object):
                 object_id = int(object_id_str)
             except ValueError:
                 self.err("%s should be an int, not %s", an_inside_div, OBJECT_ID_PROP, object_id_str)
-                object_id = -1
-            #
+                continue
+            ret.append((an_inside_div, view_name, ecotaxa, object_id))
+        return ret
+
+    def read_descriptive_schemas(self, schemas_div: MaybeTagT) \
+            -> OrderedDictT[ViewNameT, DescriptiveSchema]:
+        ret = OrderedDict()
+        if schemas_div is None:
+            return ret
+        # Loop into div
+        view_names = set()
+        for an_inside_div, view_name, ecotaxa_instance, object_id in self.read_schema_divs(schemas_div):
             if view_name in view_names:
                 self.err("view name '%s' was already used", an_inside_div, view_name)
             view_names.add(view_name)
-            schema = self.read_schema(an_inside_div, ecotaxa, object_id)
+            schema = self.read_schema(an_inside_div, ecotaxa_instance, object_id)
             ret[view_name] = schema
         return ret
 
@@ -250,19 +255,8 @@ class CardReader(object):
         ret = []
         if more_examples_div is None:
             return ret
-        for an_inside_div in check_only_some_tags_in(more_examples_div, (TAG_NAME_DIV,), self.err):
-            # TODO: dup fragment
-            ok, view_name, ecotaxa, object_id_str = check_and_get_attributes(an_inside_div, self.err, *VIEW_PROPS)
-            if not ok:
-                self.err("mandatory attributes %s are invalid", an_inside_div, VIEW_PROPS)
-                continue
-            try:
-                object_id = int(object_id_str)
-            except ValueError:
-                self.err("%s should be an int, not %s", an_inside_div, OBJECT_ID_PROP, object_id_str)
-                object_id = -1
-            #
-            schema = self.read_schema(an_inside_div, ecotaxa, object_id)
+        for an_inside_div, view_name, ecotaxa_instance, object_id in self.read_schema_divs(more_examples_div):
+            schema = self.read_schema(an_inside_div, ecotaxa_instance, object_id)
             ret.append(schema)
         return ret
 

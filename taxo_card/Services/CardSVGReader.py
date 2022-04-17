@@ -185,6 +185,10 @@ class CardSVGReader(MiniSVG):
             if (image_elem_width, image_elem_height) != (0, 0):
                 self.err("child <svg> is shifted when no crop position", image_elem)
 
+        if (crop.width > svg_image.width) or (crop.height > svg_image.height):
+            self.err("crop (%d %d) is larger than image (%d %d)", image_elem,
+                     crop.width, crop.height, svg_image.width, svg_image.height)
+
         return bin_image
 
     def line_from_svg(self, elem: Tag, svg: SimpleLine) -> TaxoImageLine:
@@ -248,8 +252,9 @@ class CardSVGReader(MiniSVG):
     def segment_from_svg(self, elem: Tag, use_svg: SVGElement, symbol_svg: SVGElement,
                          group_svg: Group) -> TaxoImageSegment:
         self.check_attrs(elem, MANDATORY_ATTRS_IN_SEGMENT, OPTIONAL_ATTRS_IN_SEGMENT)
+        if use_svg is None:
+            return None
         label = use_svg.values.get(LABEL_PROP)
-        label = "?"
         symbol_id = symbol_svg.id
         if not symbol_id.endswith("_segment"):
             self.err("segment #%s: xlink %s does end with '_segment'", elem, use_svg.id)

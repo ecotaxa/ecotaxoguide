@@ -125,7 +125,7 @@ class TaxoImageCurves(TaxoImageShape):
 class TaxoImageSegment:
     """
         A segment on the image, i.e. a bezier + straight line + bezier + text , parallel to line.
-        Angle is constrained to 0, 45, 90.
+        Angle is constrained to -90, -45, 0, 45, 90.
         The segment name is displayed, as text, parallel to the drawing.
     """
     # The segment name
@@ -136,9 +136,8 @@ class TaxoImageSegment:
     coords: Rectangle
     rotation: float
 
-
 @dataclass
-class DescriptiveSchema(SchemaFromImage):
+class AnnotatedSchema(SchemaFromImage):
     """
         A commented (using drawings) schema.
     """
@@ -146,15 +145,22 @@ class DescriptiveSchema(SchemaFromImage):
     shapes: List[TaxoImageShape]
     # Segments
     segments: List[TaxoImageSegment]
-    # Zoomable areas
-    zooms: List[ZoomArea]
 
 
 @dataclass
-class SchemaWithShapes(SchemaFromImage):
+class DescriptiveSchema(AnnotatedSchema):
     """
-        A restricted schema, with "only" shapes, but logically linked to a view
+        An AnnotatedSchema with zoomable areas.
     """
-    view: ViewNameT
-    # The drawn shapes
-    shapes: List[TaxoImageShape]
+    # Zoomable areas
+    zooms: List[ZoomArea]
+
+@dataclass
+class ConfusionSchema(SchemaFromImage):
+    """
+        A schema with indications of what might be confusing.
+    """
+    # The arrows
+    where_conf: List[TaxoImageLine]
+    # Their text, basically formatted with <em> <strong>
+    why_conf: List[str]

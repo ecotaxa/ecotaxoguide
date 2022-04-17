@@ -17,7 +17,7 @@ from svgelements import SVG_TAG_DEFS, SVG_NAME_TAG
 from BO.Document.Card import TaxoCard
 from BO.Document.Confusion import PossibleConfusion
 from BO.Document.Criteria import IdentificationCriteria
-from BO.Document.ImagePlus import DescriptiveSchema, SchemaWithShapes
+from BO.Document.ImagePlus import DescriptiveSchema, AnnotatedSchema, ConfusionSchema, TaxoImageLine
 from BO.Document.WebLink import CommentedLink
 from BO.app_types import ViewNameT
 from Services.CardSVGReader import CardSVGReader
@@ -29,7 +29,9 @@ INSTRUMENTID_PROP = "data-instrumentid"
 BODY_ATTRS = (TAXOID_PROP, INSTRUMENTID_PROP)
 
 MORPHO_CRITERIA_CLASS = "morpho-criteria"
-TOP_LEVEL_ARTICLE = ("p", "ul")
+TAG_NAME_UL = 'ul'
+TAG_NAME_OL = 'ol'
+TOP_LEVEL_ARTICLE = ("p", TAG_NAME_UL)
 TAG_NAME_LI = "li"
 ARTICLE_EFFECTS = ("em", "strong")
 
@@ -47,6 +49,10 @@ MORE_EXAMPLES_CLASS = "more-examples"
 PHOTOS_AND_FIGURES_CLASS = "photos-and-figures"
 CONFUSIONS_CLASS = "possible-confusions"
 OPTIONAL_CLASSES = [MORE_EXAMPLES_CLASS, PHOTOS_AND_FIGURES_CLASS, CONFUSIONS_CLASS]
+
+CONFUSION_PAIR_CLASS = "confusion-pair"
+CONFUSION_SELF_CLASS = "confusion-self"
+CONFUSION_OTHER_CLASS = "confusion-other"
 
 
 # noinspection PyTypeChecker
@@ -183,7 +189,7 @@ class CardReader(object):
                 continue
             if a_child.name == 'p':
                 self.check_article_paragraph(a_child)
-            elif a_child.name == 'ul':
+            elif a_child.name == TAG_NAME_UL:
                 self.check_article_list(a_child)
         ret = IdentificationCriteria(article.text)
         return ret
@@ -219,18 +225,24 @@ class CardReader(object):
         if not found:
             self.err("empty list", child)
 
+    def read_schema_div(self, schema_div: Tag) -> Tuple[Tag, str, str, int]:
+        ok, view_name, ecotaxa, object_id_str = check_and_get_attributes(schema_div, self.err, *VIEW_PROPS)
+        if not ok:
+            self.err("mandatory attributes %s are invalid", schema_div, VIEW_PROPS)
+            return None, "", "", -1
+        try:
+            object_id = int(object_id_str)
+        except ValueError:
+            self.err("%s should be an int, not %s", schema_div, OBJECT_ID_PROP, object_id_str)
+            return None, "", "", -1
+        return schema_div, view_name, ecotaxa, object_id
+
     def read_schema_divs(self, schemas_div: Tag) -> List[Tuple[Tag, str, str, int]]:
         """ Read the HTML divs inside and validate the refs """
         ret = []
         for an_inside_div in check_only_some_tags_in(schemas_div, (TAG_NAME_DIV,), self.err):
-            ok, view_name, ecotaxa, object_id_str = check_and_get_attributes(an_inside_div, self.err, *VIEW_PROPS)
-            if not ok:
-                self.err("mandatory attributes %s are invalid", an_inside_div, VIEW_PROPS)
-                continue
-            try:
-                object_id = int(object_id_str)
-            except ValueError:
-                self.err("%s should be an int, not %s", an_inside_div, OBJECT_ID_PROP, object_id_str)
+            valid_div, view_name, ecotaxa, object_id = self.read_schema_div(an_inside_div)
+            if valid_div is None:
                 continue
             ret.append((an_inside_div, view_name, ecotaxa, object_id))
         return ret
@@ -251,7 +263,7 @@ class CardReader(object):
         return ret
 
     def read_more_examples(self, more_examples_div: MaybeTagT) \
-            -> List[SchemaWithShapes]:
+            -> List[AnnotatedSchema]:
         ret = []
         if more_examples_div is None:
             return ret
@@ -261,7 +273,7 @@ class CardReader(object):
         return ret
 
     def read_schema(self, a_div: Tag, instance: str, object_id: int) -> DescriptiveSchema:
-        # Read what's missing from base class
+        # TODO: Specialize per schema type.
         svg_elem = check_get_single_child(a_div, SVG_NAME_TAG, self.err)
         if svg_elem is None:
             self.err("no <svg> at all", a_div)
@@ -295,4 +307,51 @@ class CardReader(object):
         pass
 
     def read_confusions(self, confusions_div: MaybeTagT) -> List[PossibleConfusion]:
-        pass
+        """ Read the confusions """
+        ret = []
+        if confusions_div is None:
+            return ret
+        for a_conf_pair in no_blank_children(confusions_div):
+            if not check_only_class_is(a_conf_pair, CONFUSION_PAIR_CLASS, self.err):
+                continue
+            pair = no_blank_children(a_conf_pair)
+            if len(pair) != 2:
+                self.err("confusion needs exactly 2 children <divs>", a_conf_pair)
+                continue
+            self_div, other_div = pair
+            if not check_only_class_is(self_div, CONFUSION_SELF_CLASS, self.err):
+                continue
+            if not check_only_class_is(other_div, CONFUSION_OTHER_CLASS, self.err):
+                continue
+            conf_self = self.read_confusion(self_div)
+            conf_other = self.read_confusion(other_div)
+        return ret
+
+    def read_confusion(self, confusion_div: Tag) -> ConfusionSchema:
+        """ Read a confusion """
+        children = no_blank_children(confusion_div)
+        if len(children) != 2:
+            self.err("a confusion should have exactly 2 children", confusion_div)
+            return None
+        schema_child, text_child = children
+        valid_div, view_name, ecotaxa_instance, object_id = self.read_schema_div(schema_child)
+        if valid_div is None:
+            return None
+        schema = self.read_schema(valid_div, ecotaxa_instance, object_id)
+        if text_child.name != TAG_NAME_OL:
+            self.err("second confusion tag should be a %s", confusion_div, TAG_NAME_OL)
+            return None
+        # We can style a bit the lines, like article.
+        self.check_article_list(text_child)
+        schema_lines = [a_shape for a_shape in schema.shapes if isinstance(a_shape, TaxoImageLine)]
+        texts = [str(a_li) for a_li in no_blank_children(text_child)]
+        if len(schema_lines) != len(texts):
+            self.err("different number of arrows (%d) and texts (%d)", valid_div,
+                     len(schema_lines), len(texts))
+        ret = ConfusionSchema(ecotaxa_inst=ecotaxa_instance,
+                              object_id=object_id,
+                              image=schema.image,
+                              crop=schema.crop,
+                              where_conf=schema_lines,
+                              why_conf=texts)
+        return ret

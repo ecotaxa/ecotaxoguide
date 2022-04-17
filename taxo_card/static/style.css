@@ -63,6 +63,24 @@
 
 .possible-confusions > div {
     /* Setting the width sizes the SVG */
-    max-width: 250px;
+    min-width: 500px;
+    max-width: 800px;
     border:1px solid black;
+}
+
+.possible-confusions ol {
+    /*position: fixed;*/
+    bottom: 0;
+}
+
+
+.confusion-pair {
+    display: flex;
+}
+
+.confusion-self {
+    border:2px solid lightgreen;
+}
+.confusion-other {
+    border:2px solid indianred;
 }

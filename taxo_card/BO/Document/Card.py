@@ -7,7 +7,7 @@ from typing import List, OrderedDict
 # Types
 from Providers.EcoTaxoServer import ClassifIDT
 from Providers.EcoTaxa import InstrumentIDT
-from .ImagePlus import DescriptiveSchema, SchemaWithShapes
+from .ImagePlus import DescriptiveSchema, AnnotatedSchema
 from .WebLink import CommentedLink
 from .Confusion import PossibleConfusion
 from .Criteria import IdentificationCriteria
@@ -26,7 +26,7 @@ class TaxoCard:
     # Schemas, _one_ per view type, ordered
     descriptive_schemas: OrderedDict[ViewNameT, DescriptiveSchema]
     # More examples
-    more_examples: List[SchemaWithShapes]
+    more_examples: List[AnnotatedSchema]
     # Photos & figures
     photos_and_figures: List[CommentedLink]
     # Confusions

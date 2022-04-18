@@ -284,11 +284,13 @@ class CardReader(object):
             self.err("<defs> should be grouped in a single doc-level <svg>", no_defs)
         svg_rdr = CardSVGReader(svg_elem, self.svg_defs, self.err)
         crop = svg_rdr.read_crop()
+        font_size = svg_rdr.read_font_size()
         shapes_g, zooms_g = svg_rdr.read_groups()
         if shapes_g is None:
             return None
         shapes_group = svg_rdr.read_shapes_group(shapes_g)
-        image = svg_rdr.read_image(shapes_group, crop)
+        image, height = svg_rdr.read_image(shapes_group, crop)
+        svg_rdr.check_font_size(font_size, height)
         shapes = svg_rdr.read_shapes(shapes_group)
         segments = svg_rdr.read_segments(shapes_group)
         zooms = None
@@ -353,5 +355,6 @@ class CardReader(object):
                               image=schema.image,
                               crop=schema.crop,
                               where_conf=schema_lines,
+                              numbers=[], # TODO
                               why_conf=texts)
         return ret

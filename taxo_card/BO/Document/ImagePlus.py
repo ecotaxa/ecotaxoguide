@@ -80,6 +80,17 @@ class TaxoImageShape:
 
 
 @dataclass
+class TaxoImageNumber(TaxoImageShape):
+    """
+        A circled number ① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ on the image.
+    """
+    # <text x="114" y="120">③</text>
+    # Coordinates are in the background image space
+    # The point is the center of the char.
+    coords: Point  #
+
+
+@dataclass
 class TaxoImageLine(TaxoImageShape):
     """
         A line on the image.
@@ -130,11 +141,12 @@ class TaxoImageSegment:
     """
     # The segment name
     label: SegmentNameT
-    # Graphical coordinates
+    # Graphical coordinates of the equivalent 1-width included <path>
     # IMPORTANT: Following SVG, the rectangle encloses the segment when rotation is 0.
     # Coordinates are in the background image space
     coords: Rectangle
     rotation: float
+
 
 @dataclass
 class AnnotatedSchema(SchemaFromImage):
@@ -155,6 +167,7 @@ class DescriptiveSchema(AnnotatedSchema):
     # Zoomable areas
     zooms: List[ZoomArea]
 
+
 @dataclass
 class ConfusionSchema(SchemaFromImage):
     """
@@ -162,5 +175,7 @@ class ConfusionSchema(SchemaFromImage):
     """
     # The arrows
     where_conf: List[TaxoImageLine]
+    # The circled numbers
+    numbers: List[TaxoImageNumber]
     # Their text, basically formatted with <em> <strong>
     why_conf: List[str]

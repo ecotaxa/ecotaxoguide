@@ -12,10 +12,10 @@ from svgelements import SVG_ATTR_VIEWBOX, Viewbox, SimpleLine, Shape, Circle, Pa
     SVG_TAG_LINE, SVG_TAG_PATH, \
     SVG_TAG_CIRCLE, SVG_TAG_TITLE, SVG_NAME_TAG, SVG_TAG_USE, Move, Arc, SVG_ATTR_DATA, SVG_ATTR_X1, SVG_ATTR_Y1, \
     SVG_ATTR_X2, SVG_ATTR_Y2, SVG_ATTR_RADIUS, SVG_ATTR_CENTER_Y, SVG_ATTR_CENTER_X, SVG_ATTR_ID, SVG_TAG_GROUP, \
-    SVG_TAG_RECT, Rect
+    SVG_TAG_RECT, Rect, Text, SVG_TAG_TEXT
 
 from BO.Document.ImagePlus import TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle, \
-    TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves, CropArea
+    TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves, CropArea, TaxoImageNumber
 from Services.SVG import MiniSVG
 from Services.html_utils import check_only_class_is, get_nth_no_blank, no_blank_ite, get_id, IndexedElemListT
 
@@ -33,9 +33,9 @@ ZOOMS_GROUP_CLASS = "zooms"
 SEGMENT_ROTATION_VALID_ANGLES = (-90, -45, 0, 45, 90)
 
 OK_TAGS_IN_SHAPE = {SVG_TAG_LINE, SVG_TAG_PATH, SVG_TAG_CIRCLE,
-                    SVG_NAME_TAG, SVG_TAG_USE}
+                    SVG_NAME_TAG, SVG_TAG_USE, SVG_TAG_TEXT}
 
-MANDATORY_ATTRS_IN_TOP_SVG = {"xmlns", 'viewbox', 'xmlns:xlink', 'version', 'baseprofile'}
+MANDATORY_ATTRS_IN_TOP_SVG = {"xmlns", 'viewbox', 'font-size', 'xmlns:xlink', 'version', 'baseprofile'}
 MANDATORY_ATTRS_IN_LINE = {SVG_ATTR_ID, LABEL_PROP, SVG_ATTR_X1, SVG_ATTR_Y1, SVG_ATTR_X2, SVG_ATTR_Y2}
 MANDATORY_ATTRS_IN_CURVES = {SVG_ATTR_ID, LABEL_PROP, SVG_ATTR_DATA}
 OPTIONAL_ATTRS_IN_ARROWABLE = {SVG_ATTR_MARKER_START, SVG_ATTR_MARKER_END}
@@ -45,8 +45,13 @@ OPTIONAL_ATTRS_IN_SEGMENT = {SVG_ATTR_TRANSFORM}
 MANDATORY_ATTRS_IN_IMAGE_SVG = {"class", SVG_ATTR_ID}
 OPTIONAL_ATTRS_IN_IMAGE_SVG = {SVG_ATTR_WIDTH, SVG_ATTR_HEIGHT}
 MANDATORY_ATTRS_IN_ZOOM = {SVG_ATTR_ID, SVG_ATTR_X, SVG_ATTR_Y, SVG_ATTR_WIDTH, SVG_ATTR_HEIGHT}
+MANDATORY_ATTRS_IN_TEXT = {SVG_ATTR_ID, SVG_ATTR_X, SVG_ATTR_Y}
 
 MAX_PARTS_IN_CURVE = 16
+
+HEIGHT_TO_FONT = 36
+
+ALLOWED_TEXTS = "①②③④⑤⑥⑦⑧⑨"
 
 
 class CardSVGReader(MiniSVG):
@@ -111,6 +116,14 @@ class CardSVGReader(MiniSVG):
         vb = Viewbox(viewbox)
         return CropArea(vb.x, vb.y, vb.width, vb.height)
 
+    def read_font_size(self) -> int:
+        # Get the font-size, which is base for all fonts inside
+        font_size = self.root.values.get('font-size')
+        try:
+            return int(font_size)
+        except TypeError:
+            return 0
+
     def read_groups(self) -> List[Optional[Tag]]:
         """
             Read and validate the groups <g> inside self. Return None for each missing group.
@@ -132,7 +145,7 @@ class CardSVGReader(MiniSVG):
             ret.append(None)
         return ret
 
-    def read_image(self, svg_group: IndexedElemListT, crop: CropArea) -> bytearray:
+    def read_image(self, svg_group: IndexedElemListT, crop: CropArea) -> Tuple[bytearray, int]:
         """
             All supporting images come from EcoTaxa and have these attributes.
         """
@@ -148,7 +161,7 @@ class CardSVGReader(MiniSVG):
         # Note: the SVG parser eliminates somehow the corrupted images
         if bg_svg is None or len(bg_svg) != 1:
             self.err("no or too many <svg><image></svg> found", self.parent)
-            return bytearray([0])
+            return bytearray([0]), 0
         # OK we have _the_ image
         svg_image = bg_svg[0]
         # Get its XHTML counterpart
@@ -189,7 +202,7 @@ class CardSVGReader(MiniSVG):
             self.err("crop (%d %d) is larger than image (%d %d)", image_elem,
                      crop.width, crop.height, svg_image.width, svg_image.height)
 
-        return bin_image
+        return bin_image, svg_image.height
 
     def line_from_svg(self, elem: Tag, svg: SimpleLine) -> TaxoImageLine:
         self.check_attrs(elem, MANDATORY_ATTRS_IN_LINE, OPTIONAL_ATTRS_IN_ARROWABLE)
@@ -295,6 +308,16 @@ class CardSVGReader(MiniSVG):
                                rotation=angle)
         return ret
 
+    def text_from_svg(self, elem: Tag, svg: Text) -> TaxoImageNumber:
+        self.check_attrs(elem, MANDATORY_ATTRS_IN_TEXT)
+        # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough.
+        coords = Point(svg.x, svg.y)
+        if svg.text not in ALLOWED_TEXTS:
+            self.err("forbidden here: %s", elem, svg.text)
+        ret = TaxoImageNumber(label=svg.text,
+                              coords=coords)
+        return ret
+
     def read_shapes_group(self, group: Tag) -> IndexedElemListT:
         """
             Read the group with shapes, validate it and return _potentially_ interesting SVG elements.
@@ -303,7 +326,7 @@ class CardSVGReader(MiniSVG):
         # Loop over XHTML children
         for a_child in no_blank_ite(group.children):
             child_id = get_id(a_child)
-            if a_child.name == SVG_TAG_TITLE:
+            if a_child.name in (SVG_TAG_TITLE, SVG_TAG_TEXT):
                 # OK to not have id
                 continue
             elif a_child.name in OK_TAGS_IN_SHAPE:
@@ -331,6 +354,8 @@ class CardSVGReader(MiniSVG):
                 shape = self.circle_from_svg(a_svg_elem, a_svg)
             elif isinstance(a_svg, SVGPath):
                 shape = self.path_from_svg(a_svg_elem, a_svg)
+            elif isinstance(a_svg, Text):
+                shape = self.text_from_svg(a_svg_elem, a_svg)
             else:
                 continue
             ret.append(shape)
@@ -370,3 +395,9 @@ class CardSVGReader(MiniSVG):
             else:
                 self.err("unexpected tag", a_child)
         return ret
+
+    def check_font_size(self, font_size: int, height: int):
+        """ We set the font size on root SVG for proportions of text """
+        should_be = int(round(height / HEIGHT_TO_FONT))
+        if font_size != should_be:
+            self.err("font-size should be %d", self.elem, should_be)

@@ -8,7 +8,6 @@
     content: "Morphological identification criteria";
 }
 
-
 .descriptive-schemas::before {
     color: blue;
     content: "Descriptive schemas";
@@ -63,9 +62,9 @@
 
 .possible-confusions > div {
     /* Setting the width sizes the SVG */
-    min-width: 500px;
+    min-width: 600px;
     max-width: 800px;
-    border:1px solid black;
+    border: 1px solid black;
 }
 
 .possible-confusions ol {
@@ -79,8 +78,9 @@
 }
 
 .confusion-self {
-    border:2px solid lightgreen;
+    border: 2px solid lightgreen;
 }
+
 .confusion-other {
-    border:2px solid indianred;
+    border: 2px solid indianred;
 }

@@ -41,7 +41,7 @@
 .more-examples > div {
     /* Setting the width sizes the SVG */
     max-width: 200px;
-    border:1px solid black;
+    border: 1px solid black;
 }
 
 .photos-and-figures::before {
@@ -78,9 +78,13 @@
 }
 
 .confusion-self {
+    width: 40%;
     border: 2px solid lightgreen;
+    margin-left: auto;
 }
 
 .confusion-other {
+    width: 40%;
     border: 2px solid indianred;
+    margin-right: auto;
 }

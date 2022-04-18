@@ -7,12 +7,12 @@
     <link rel="stylesheet" href="style.css"/>
     <!-- Content specific styles -->
     <style>
-        line, path, circle {
+        .shapes line, .shapes path, .shapes circle {
             stroke-width: 2.5;
             vector-effect: non-scaling-stroke;
         }
 
-        text {
+        .shapes text {
             vector-effect: non-scaling-stroke;
         }
 
@@ -21,6 +21,11 @@
             stroke: blueviolet;
             text-anchor: middle;
             font-size: 4em;
+        }
+
+        symbol {
+            /* don't crop as stroke slightly overflows the bbox */
+            overflow: auto;
         }
 
         .segment text {
@@ -32,15 +37,11 @@
         }
 
         .segment use {
+            stroke-width: 2.5;
             stroke: red;
         }
 
-        symbol {
-            /* don't crop as stroke slightly overflows the bbox */
-            overflow: auto;
-        }
-
-        g.zooms rect {
+        .zooms rect {
             fill: none;
             stroke-width: 2;
             stroke-dasharray: 2, 2;

@@ -113,3 +113,25 @@ def check_get_single_child(a_tag: Tag, expected_name: str, log_err: Callable) ->
 
 def first_child_tag(tag) -> Optional[Tag]:
     return next(no_blank_ite(tag.children))
+
+
+def check_attrs(reader, elem: Tag, mandatory: Set, optional: Optional[Set] = None) -> bool:
+    """
+        Check the attributes, all mandatory ones should be there, optional ones _can_ be present,
+        the rest is errored.
+    """
+    ret = True
+    if optional is None:
+        optional = set()
+    present_attrs = set(elem.attrs)
+    mandatory_not_present = mandatory.difference(present_attrs)
+    if len(mandatory_not_present) > 0:
+        reader.err("mandatory attribute(s) missing: %s", elem,
+                   mandatory_not_present)
+        ret = False
+    should_be_none = present_attrs.difference(mandatory).difference(optional)
+    if len(should_be_none) > 0:
+        reader.err("forbidden attribute(s) (should e.g. be in class definition): %s", elem,
+                   should_be_none)
+        ret = False
+    return ret

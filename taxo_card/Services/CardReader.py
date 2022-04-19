@@ -21,8 +21,9 @@ from BO.Document.ImagePlus import DescriptiveSchema, AnnotatedSchema, ConfusionS
 from BO.Document.WebLink import CommentedLink
 from BO.app_types import ViewNameT
 from Services.CardSVGReader import CardSVGReader
-from Services.html_utils import check_only_class_is, first_child_tag, no_blank_ite, get_nth_no_blank, \
-    check_and_get_attributes, check_get_single_child, check_only_some_tags_in, MaybeTagT, no_blank_children, CLASS_ATTR
+from Services.html_utils import check_only_class_is, no_blank_ite, check_and_get_attributes, check_get_single_child, \
+    check_only_some_tags_in, MaybeTagT, no_blank_children, CLASS_ATTR, \
+    check_attrs
 
 TAXOID_PROP = "data-taxoid"
 INSTRUMENTID_PROP = "data-instrumentid"
@@ -34,6 +35,7 @@ TAG_NAME_OL = 'ol'
 TOP_LEVEL_ARTICLE = ("p", TAG_NAME_UL)
 TAG_NAME_LI = "li"
 ARTICLE_EFFECTS = ("em", "strong")
+TAG_NAME_A = "a"
 
 TAG_NAME_DIV = "div"
 
@@ -54,6 +56,7 @@ CONFUSION_PAIR_CLASS = "confusion-pair"
 CONFUSION_SELF_CLASS = "confusion-self"
 CONFUSION_OTHER_CLASS = "confusion-other"
 
+MANDATORY_ATTRS_IN_PHOTOS_AND_FIGURES = {'href'}
 
 # noinspection PyTypeChecker
 class CardReader(object):
@@ -306,7 +309,25 @@ class CardReader(object):
         return ret
 
     def read_photos_and_figures(self, photos_div: MaybeTagT) -> List[CommentedLink]:
-        pass
+        """
+            Read the photos & figures, optional div with a list of simple hrefs
+        """
+        ret = []
+        if photos_div is None:
+            return ret
+        for an_anchor in no_blank_children(photos_div):
+            if not an_anchor.name == TAG_NAME_A:
+                self.err("only <a> here", an_anchor)
+                continue
+            if not check_attrs(self, an_anchor, MANDATORY_ATTRS_IN_PHOTOS_AND_FIGURES):
+                continue
+            comment = an_anchor.text
+            self.check_article_paragraph(an_anchor)
+            ret.append(CommentedLink(url=an_anchor.attrs['href'],
+                                     comment=comment))
+        if len(ret) == 0:
+            self.err("section is present with no valid content", photos_div)
+        return ret
 
     def read_confusions(self, confusions_div: MaybeTagT) -> List[PossibleConfusion]:
         """ Read the confusions """
@@ -355,6 +376,6 @@ class CardReader(object):
                               image=schema.image,
                               crop=schema.crop,
                               where_conf=schema_lines,
-                              numbers=[], # TODO
+                              numbers=[],  # TODO
                               why_conf=texts)
         return ret

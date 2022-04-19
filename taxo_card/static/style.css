@@ -49,6 +49,12 @@
     content: "Photos and figures";
 }
 
+.photos-and-figures a {
+    /* Force newline after each link */
+    display: block;
+    text-decoration: none;
+}
+
 .possible-confusions::before {
     color: magenta;
     content: "Possible confusions";
@@ -71,7 +77,6 @@
     /*position: fixed;*/
     bottom: 0;
 }
-
 
 .confusion-pair {
     display: flex;

@@ -17,7 +17,8 @@ from svgelements import SVG_ATTR_VIEWBOX, Viewbox, SimpleLine, Shape, Circle, Pa
 from BO.Document.ImagePlus import TaxoImageShape, TaxoImageSegment, ZoomArea, Rectangle, \
     TaxoImageLine, ArrowType, Point, TaxoImageCircle, TaxoImageCurves, CropArea, TaxoImageNumber
 from Services.SVG import MiniSVG
-from Services.html_utils import check_only_class_is, get_nth_no_blank, no_blank_ite, get_id, IndexedElemListT
+from Services.html_utils import check_only_class_is, no_blank_ite, get_id, IndexedElemListT, \
+    check_attrs
 
 # Not in svgelements package
 SVG_ATTR_MARKER_START = "marker-start"
@@ -77,21 +78,7 @@ class CardSVGReader(MiniSVG):
             Check the attributes, all mandatory ones should be there, optional ones _can_ be present,
             the rest is errored.
         """
-        ret = True
-        if optional is None:
-            optional = set()
-        present_attrs = set(elem.attrs)
-        mandatory_not_present = mandatory.difference(present_attrs)
-        if len(mandatory_not_present) > 0:
-            self.err("mandatory attribute(s) missing: %s", elem,
-                     mandatory_not_present)
-            ret = False
-        should_be_none = present_attrs.difference(mandatory).difference(optional)
-        if len(should_be_none) > 0:
-            self.err("forbidden attribute(s) (should e.g. be in class definition): %s", elem,
-                     should_be_none)
-            ret = False
-        return ret
+        return check_attrs(self, elem, mandatory, optional)
 
     def arrowed_from_svg(self, elem: Tag, svg: Shape):
         """

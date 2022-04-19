@@ -4,20 +4,22 @@
 # Card reader and validator
 #
 from collections import OrderedDict
+from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
 from typing import Tuple, OrderedDict as OrderedDictT, List
 
-from bs4 import BeautifulSoup
-from bs4.element import Tag, PageElement, NavigableString
+from bs4 import BeautifulSoup  # type:ignore
+from bs4.element import Tag, PageElement, NavigableString  # type:ignore
 # noinspection PyUnresolvedReferences
 from emoji.core import is_emoji
-from svgelements import SVG_TAG_DEFS, SVG_NAME_TAG
+from svgelements import SVG_TAG_DEFS, SVG_NAME_TAG  # type:ignore
 
 from BO.Document.Card import TaxoCard
 from BO.Document.Confusion import PossibleConfusion
 from BO.Document.Criteria import IdentificationCriteria
-from BO.Document.ImagePlus import DescriptiveSchema, AnnotatedSchema, ConfusionSchema, TaxoImageLine
+from BO.Document.ImagePlus import DescriptiveSchema, AnnotatedSchema, ConfusionSchema, TaxoImageLine, SchemaFromImage, \
+    TaxoImageNumber
 from BO.Document.WebLink import CommentedLink
 from BO.app_types import ViewNameT
 from Services.CardSVGReader import CardSVGReader
@@ -57,6 +59,12 @@ CONFUSION_SELF_CLASS = "confusion-self"
 CONFUSION_OTHER_CLASS = "confusion-other"
 
 MANDATORY_ATTRS_IN_PHOTOS_AND_FIGURES = {'href'}
+
+
+@dataclass
+class FullSchema(DescriptiveSchema):
+    """ All schema possibilities inside a single object """
+
 
 # noinspection PyTypeChecker
 class CardReader(object):
@@ -252,7 +260,7 @@ class CardReader(object):
 
     def read_descriptive_schemas(self, schemas_div: MaybeTagT) \
             -> OrderedDictT[ViewNameT, DescriptiveSchema]:
-        ret = OrderedDict()
+        ret: OrderedDictT[ViewNameT, DescriptiveSchema] = OrderedDict()
         if schemas_div is None:
             return ret
         # Loop into div
@@ -262,6 +270,11 @@ class CardReader(object):
                 self.err("view name '%s' was already used", an_inside_div, view_name)
             view_names.add(view_name)
             schema = self.read_schema(an_inside_div, ecotaxa_instance, object_id)
+            if schema is None:
+                continue
+            for a_shape in schema.shapes:
+                if isinstance(a_shape, TaxoImageNumber):
+                    self.err("circled number inside descriptive schema", schemas_div)
             ret[view_name] = schema
         return ret
 
@@ -272,11 +285,24 @@ class CardReader(object):
             return ret
         for an_inside_div, view_name, ecotaxa_instance, object_id in self.read_schema_divs(more_examples_div):
             schema = self.read_schema(an_inside_div, ecotaxa_instance, object_id)
-            ret.append(schema)
+            for a_shape in schema.shapes:
+                if isinstance(a_shape, TaxoImageNumber):
+                    self.err("circled number inside descriptive schema", more_examples_div)
+            if len(schema.zooms) > 0:
+                self.err("zoom area inside descriptive schema", more_examples_div)
+            ret.append(AnnotatedSchema(ecotaxa_inst=schema.ecotaxa_inst,
+                                       object_id=schema.object_id,
+                                       image=schema.image,
+                                       crop=schema.crop,
+                                       shapes=schema.shapes,
+                                       segments=schema.segments))
         return ret
 
-    def read_schema(self, a_div: Tag, instance: str, object_id: int) -> DescriptiveSchema:
-        # TODO: Specialize per schema type.
+    def read_schema(self, a_div: Tag, instance: str, object_id: int) -> FullSchema:
+        """
+            Read a full schema regardless of the context. Up to caller to validate.
+        """
+
         svg_elem = check_get_single_child(a_div, SVG_NAME_TAG, self.err)
         if svg_elem is None:
             self.err("no <svg> at all", a_div)
@@ -299,13 +325,15 @@ class CardReader(object):
         zooms = None
         if zooms_g is not None:
             zooms = svg_rdr.read_zooms(zooms_g)
-        ret = DescriptiveSchema(ecotaxa_inst=instance,
-                                object_id=object_id,
-                                image=image,
-                                crop=crop,
-                                shapes=shapes,
-                                segments=segments,
-                                zooms=zooms)
+        else:
+            zooms = []
+        ret = FullSchema(ecotaxa_inst=instance,
+                         object_id=object_id,
+                         image=image,
+                         crop=crop,
+                         shapes=shapes,
+                         segments=segments,
+                         zooms=zooms)
         return ret
 
     def read_photos_and_figures(self, photos_div: MaybeTagT) -> List[CommentedLink]:
@@ -348,6 +376,7 @@ class CardReader(object):
                 continue
             conf_self = self.read_confusion(self_div)
             conf_other = self.read_confusion(other_div)
+            # TODO: Reconstitue data
         return ret
 
     def read_confusion(self, confusion_div: Tag) -> ConfusionSchema:

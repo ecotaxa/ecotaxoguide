@@ -1,9 +1,9 @@
 #
-# bs4-based tuility defs
+# bs4-based utility defs
 #
 from typing import Callable, Set, Optional, Iterable, List, OrderedDict, Generator
 
-from bs4.element import Tag, NavigableString, Comment
+from bs4.element import Tag, NavigableString, Comment  # type:ignore
 
 CLASS_ATTR = "class"
 JUST_CLASS = {"class"}

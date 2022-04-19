@@ -27,7 +27,7 @@ Exemple: `31190_Zooscan.json` contiendrait la configuration pour la fiche taxo _
 - L'utilisateur peut alors modifier *Fi*, en étant forcé de respecter la configuration. Pendant cette phase, **aucun
   dialogue avec le gestionnaire n'est nécessaire**.
 - Lors de la sauvegarde, l'éditeur génère *Fo* et l'envoie au gestionnaire.
-- Le gestionnaire écrit *Fo*.
+- Le gestionnaire valide et écrit *Fo*.
 
 Conséquences pratiques:
 
@@ -48,19 +48,63 @@ Conséquences pratiques:
 
 # Configuration
 
-La configuration est une donnée au format JSON.
+La configuration est une donnée contenant:
+
+{  
+"taxoid": _identifiant de l'espèce_  
+"instrumentid": _identifiant de l'instrument_  
+"labels": _liste associative nom de label->couleur HTML_  
+"segments": _liste d'étiquettes de segments_  
+}
+
+Pour l'exemple illustré dans le répertoire "static", la configuration permettant la génération aurait été, en JSON:
+
+`{ "taxoid":74144,  
+"instrumentid":"Zooscan",  
+"labels":{
+"protoconch":"blue",
+"queue":"red",
+"foot":"orchid",
+"apex":"darkgray"
+},
+"segments":[
+"body",
+"head",
+"tail"
+]
+}`
 
 # Fiche
 
 La fiche est au format HTML5. La correspondance entre les différentes parties de la fiche est résumée ci-dessous:
 
-| Bloc     | Document             | Obligatoire |
-|----------|----------------------|-------------|
-| Metadata | data-* dans `<body>` | Oui         |
-|Morphological identification criteria| `<article class="morpho-criteria">` | Oui         |
-|Descriptive schemas|`<div class="descriptive-schemas">`| Oui         |
-|          |                      |             |
-|          |                      |             |
-|          |                      |             |
-|          |                      |             |
-|          |                      |             |
+| Bloc                                  | Document                            |
+|---------------------------------------|-------------------------------------|
+| Metadata                              | data-* dans `<body>`                |
+| Morphological identification criteria | `<article class="morpho-criteria">` |
+| Descriptive schemas                   | `<div class="descriptive-schemas">` |
+| More examples                         | `<div class="more-examples">`       |
+| Photos and Figures                    | `<div class="photos-and-figures">`  |
+| Possible Confusions                   | `<div class="possible-confusions">`   |
+
+Les schémas sont au format SVG à l'intérieur des fiches, les primitives utilisés sont:
+
+| Element             | Type SVG                          | 
+|---------------------|-----------------------------------|
+| Image de base       | `<image>`                         |
+| Flêches             | `<line>`                          |
+| Forme ronde         | `<circle>`                        |
+| Forme 'spline'      | `<path>` restreint                |
+| More examples       | `<div class="more-examples">`     |
+| Possible Confusions | `<div class="possible-confusions">` |
+
+# Survol du code
+
+On trouvera dans le présent répertoire un code python (`verify.py`) dont le but est de valider
+l'exemple `ok_example.html` et d'afficher de nombreuses erreurs sur l'exemple `ko_example.html`.
+
+Le code est incomplet (i.e. il n'affichera aucune erreur sur certains documents invalides) mais constitue une base pour
+être intégré (ou ré-implémenté).
+
+Le principe de conception de l'application est que tout document doit être validé avant d'être stocké, i.e. que le
+module gestionnaire ne doit pas "faire confiance" au module éditeur de fiche.  

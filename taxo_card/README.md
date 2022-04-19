@@ -1,7 +1,7 @@
 
 ##Taxonomic Guide app
 
-Proof of concept, exchange format specifications and application skeleton.
+Proof of concept, exchange format example and validator and application data model.
 
 What's missing for the final app:
 - Users with permissions.

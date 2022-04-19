@@ -333,8 +333,10 @@ class CardSVGReader(MiniSVG):
         """
         ret = []
         # Loop over group children, so the parsed TaxoImageShape keeps shapes order
+        # TODO: id-less children are not caught!
         for a_svg_id, a_svg_elem in svg_group.items():
             a_svg = self.root.get_element_by_id(a_svg_id)
+            shape: TaxoImageShape
             if isinstance(a_svg, SimpleLine):
                 shape = self.line_from_svg(a_svg_elem, a_svg)
             elif isinstance(a_svg, Circle):

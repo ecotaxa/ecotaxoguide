@@ -8,19 +8,18 @@
     <!-- Content specific styles -->
     <style>
         .shapes line, .shapes path, .shapes circle {
+            /* Atomic shapes */
             stroke-width: 2.5;
-            vector-effect: non-scaling-stroke;
-        }
-
-        .shapes text {
             vector-effect: non-scaling-stroke;
         }
 
         .shapes text {
             /* Rounded numbers */
             stroke: blueviolet;
+            vector-effect: non-scaling-stroke;
             text-anchor: middle;
             font-size: 4em;
+            cursor: default;
         }
 
         symbol {
@@ -31,12 +30,15 @@
         .segment text {
             /* Text in segments */
             stroke: palevioletred;
+            vector-effect: non-scaling-stroke;
             dominant-baseline: hanging;
             text-anchor: middle;
             font-size: 1.5em;
+            cursor: default;
         }
 
         .segment use {
+            /* Brace in segments */
             stroke-width: 2.5;
             stroke: red;
         }

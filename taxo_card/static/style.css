@@ -71,15 +71,12 @@
     min-width: 600px;
     max-width: 800px;
     border: 1px solid black;
+    display: flex;
 }
 
 .possible-confusions ol {
     /*position: fixed;*/
     bottom: 0;
-}
-
-.confusion-pair {
-    display: flex;
 }
 
 .confusion-self {

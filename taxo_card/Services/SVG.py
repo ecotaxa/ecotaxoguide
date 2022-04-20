@@ -35,40 +35,22 @@ class MiniSVG(object):
 
     def __init__(self, svg_elem: Tag, svg_defs: Tag):
         """ Init from a svg chunk referencing defs which are elsewhere, i.e. document global """
-        # Inject the defs for the validation
-        svg_elem.insert(0, svg_defs)
+        # First parse the 'context', which is the global defs
+        svg_defs_text = SVG_HEADER + str(svg_defs)
+        try:
+            defs_context = SVG.parse(StringIO(svg_defs_text))
+        except ParseError:
+            defs_context = SVG.parse(StringIO(SVG_HEADER + "<svg>SVG lib could not read</svg>"))
+        # then move to present SVG
         self.elem = svg_elem
         self.parent = svg_elem.parent
-        svg_elem_text = str(svg_elem)
-        to_parse = SVG_HEADER + svg_elem_text
+        svg_elem_text = SVG_HEADER + str(svg_elem)
         self.root: SVG
         try:
-            self.root = SVG.parse(StringIO(to_parse))
+            self.root = SVG.parse(StringIO(svg_elem_text), context=defs_context)
+            # => The root is the <defs> part, all objects are referenced inside, by id
         except ParseError:
-            self.root = SVG.parse(StringIO(SVG_HEADER + "<svg>SVG lib could not read</svg>"))
-
-    def find_image(self, log_err: Callable) -> Optional[Image]:
-        ret = [an_img for an_img in self.root.select(lambda e: isinstance(e, Image))]
-        nb_imgs = len(ret)
-        if len(ret) != 1:
-            log_err("found %d valid image(s) when 1 exactly is expected ", self.parent, nb_imgs)
-            return None
-        return ret[0]
-
-    def find_background_image(self, needed_class: str, log_err: Callable) -> Optional[SVG]:
-        """
-            An image is inside a dedicated <svg> for allowing crop.
-        """
-        ret = None
-        for an_svg in self.root.select(lambda e: isinstance(e, SVG)):
-            if len(an_svg) == 1 \
-                    and isinstance(an_svg[0], Image) \
-                    and an_svg.values['attributes'].get('class') == needed_class:
-                if ret is None:
-                    ret = an_svg
-                else:
-                    log_err("found another image inside svg, when 1 exactly is expected ", self.parent)
-        return ret
+            self.root = SVG.parse(StringIO(SVG_HEADER + "<svg>SVG lib could not read</svg>"), context=defs_context)
 
     def find_use_by_id(self, use_id: str, use_elem: Tag, log_err: Callable) \
             -> Tuple[Optional[SVGElement], Optional[SVGElement], Optional[Group]]:

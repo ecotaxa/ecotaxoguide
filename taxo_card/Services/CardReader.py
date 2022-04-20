@@ -13,13 +13,13 @@ from bs4 import BeautifulSoup  # type:ignore
 from bs4.element import Tag, PageElement, NavigableString  # type:ignore
 # noinspection PyUnresolvedReferences
 from emoji.core import is_emoji
-from svgelements import SVG_TAG_DEFS, SVG_NAME_TAG  # type:ignore
+from svgelements import SVG_TAG_DEFS, SVG_NAME_TAG, SVG_ATTR_XMLNS_LINK, SVG_ATTR_XMLNS  # type:ignore
 
 from BO.Document.Card import TaxoCard
 from BO.Document.Confusion import PossibleConfusion
 from BO.Document.Criteria import IdentificationCriteria
-from BO.Document.ImagePlus import DescriptiveSchema, AnnotatedSchema, ConfusionSchema, TaxoImageLine, SchemaFromImage, \
-    TaxoImageNumber
+from BO.Document.ImagePlus import DescriptiveSchema, AnnotatedSchema, ConfusionSchema, TaxoImageLine, TaxoImageNumber
+from BO.Document.Text import RestrictedLine
 from BO.Document.WebLink import CommentedLink
 from BO.app_types import ViewNameT
 from Services.CardSVGReader import CardSVGReader
@@ -42,6 +42,7 @@ TAG_NAME_A = "a"
 TAG_NAME_DIV = "div"
 
 TEMPLATES_CLASS = "svg-templates"
+TEMPLATE_SVG_ATTRS = (CLASS_ATTR, SVG_ATTR_XMLNS, SVG_ATTR_XMLNS_LINK)
 
 DESCRIPTIVE_SCHEMAS_CLASS = "descriptive-schemas"
 VIEW_NAME_PROP = "data-view-name"
@@ -55,6 +56,9 @@ CONFUSIONS_CLASS = "possible-confusions"
 OPTIONAL_CLASSES = [MORE_EXAMPLES_CLASS, PHOTOS_AND_FIGURES_CLASS, CONFUSIONS_CLASS]
 
 CONFUSION_PAIR_CLASS = "confusion-pair"
+OTHER_TAXOID_PROP = "data-other-taxoid"
+OTHER_INSTRUMENTID_PROP = "data-other-instrumentid"
+CONFUSION_PAIR_ATTRS = (OTHER_TAXOID_PROP, OTHER_INSTRUMENTID_PROP)
 CONFUSION_SELF_CLASS = "confusion-self"
 CONFUSION_OTHER_CLASS = "confusion-other"
 
@@ -147,7 +151,10 @@ class CardReader(object):
                 self.err("%s elem in <body> should be a <%s>", a_child, word, name)
                 # Not even the good name, skip as the parsing will fail
                 continue
-            check_only_class_is(a_child, class_, self.err)  # Issue an error but keep the element
+            if class_ == TEMPLATES_CLASS:
+                check_and_get_attributes(a_child, self.err, *TEMPLATE_SVG_ATTRS)
+            else:
+                check_only_class_is(a_child, class_, self.err)  # Issue an error but keep the element
             ret[num_child] = a_child
         # Optional parts, in order
         expected_classes = list(OPTIONAL_CLASSES)
@@ -174,20 +181,18 @@ class CardReader(object):
         """
             The section with all reusable SVG parts, i.e. markers and symbols.
         """
-        ret = BeautifulSoup(StringIO("<defs></defs>"), "html.parser")
+        ret = BeautifulSoup(StringIO("<svg><defs></defs></svg>"), "html.parser")
         if templates is None:
             return ret
         # Tag content
         children = no_blank_children(templates)
         if len(children) != 1:
             self.err("template <svg> should contain 1 tag", templates)
-            return ret
         defs = children[0]
         if defs.name != SVG_TAG_DEFS:
             self.err("template <svg> should contain 1 tag <defs>", templates)
-            return ret
         # TODO: Check the defs themselves
-        return defs
+        return templates
 
     def read_identification_criteria(self, article: MaybeTagT) -> IdentificationCriteria:
         if article is None:
@@ -322,7 +327,6 @@ class CardReader(object):
         svg_rdr.check_font_size(font_size, height)
         shapes = svg_rdr.read_shapes(shapes_group)
         segments = svg_rdr.read_segments(shapes_group)
-        zooms = None
         if zooms_g is not None:
             zooms = svg_rdr.read_zooms(zooms_g)
         else:
@@ -363,8 +367,7 @@ class CardReader(object):
         if confusions_div is None:
             return ret
         for a_conf_pair in no_blank_children(confusions_div):
-            if not check_only_class_is(a_conf_pair, CONFUSION_PAIR_CLASS, self.err):
-                continue
+            ok, taxo_id_str, instrument_id = check_and_get_attributes(a_conf_pair, self.err, *CONFUSION_PAIR_ATTRS)
             pair = no_blank_children(a_conf_pair)
             if len(pair) != 2:
                 self.err("confusion needs exactly 2 children <divs>", a_conf_pair)
@@ -374,37 +377,48 @@ class CardReader(object):
                 continue
             if not check_only_class_is(other_div, CONFUSION_OTHER_CLASS, self.err):
                 continue
-            conf_self = self.read_confusion(self_div)
-            conf_other = self.read_confusion(other_div)
-            # TODO: Reconstitue data
+            conf_self_img, conf_self_texts = self.read_confusion(self_div)
+            conf_other_img, conf_other_texts = self.read_confusion(other_div)
+            other_taxo_id = 0  # TODO
+            a_confusion = PossibleConfusion(self_image=conf_self_img,
+                                            self_texts=conf_self_texts,
+                                            other_taxo_id=taxo_id_str,
+                                            other_instrument_id=instrument_id,
+                                            other_image=conf_other_img,
+                                            other_texts=conf_other_texts)
+            ret.append(a_confusion)
         return ret
 
-    def read_confusion(self, confusion_div: Tag) -> ConfusionSchema:
+    def read_confusion(self, confusion_div: Tag) -> Tuple[ConfusionSchema, List[RestrictedLine]]:
         """ Read a confusion """
         children = no_blank_children(confusion_div)
         if len(children) != 2:
             self.err("a confusion should have exactly 2 children", confusion_div)
-            return None
+            return None, None
         schema_child, text_child = children
         valid_div, view_name, ecotaxa_instance, object_id = self.read_schema_div(schema_child)
         if valid_div is None:
-            return None
+            return None, None
         schema = self.read_schema(valid_div, ecotaxa_instance, object_id)
         if text_child.name != TAG_NAME_OL:
             self.err("second confusion tag should be a %s", confusion_div, TAG_NAME_OL)
-            return None
+            return None, None
         # We can style a bit the lines, like article.
         self.check_article_list(text_child)
+        # Get data from image and verify constraints
         schema_lines = [a_shape for a_shape in schema.shapes if isinstance(a_shape, TaxoImageLine)]
+        schema_numbers = [a_shape for a_shape in schema.shapes if isinstance(a_shape, TaxoImageNumber)]
         texts = [str(a_li) for a_li in no_blank_children(text_child)]
         if len(schema_lines) != len(texts):
             self.err("different number of arrows (%d) and texts (%d)", valid_div,
                      len(schema_lines), len(texts))
+        if len(schema_numbers) != len(texts):
+            self.err("different number of circled numbers (%d) and texts (%d)", valid_div,
+                     len(schema_numbers), len(texts))
         ret = ConfusionSchema(ecotaxa_inst=ecotaxa_instance,
                               object_id=object_id,
                               image=schema.image,
                               crop=schema.crop,
                               where_conf=schema_lines,
-                              numbers=[],  # TODO
-                              why_conf=texts)
-        return ret
+                              numbers=schema_numbers)
+        return ret, texts

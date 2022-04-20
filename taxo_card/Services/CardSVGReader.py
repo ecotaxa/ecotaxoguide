@@ -99,13 +99,13 @@ class CardSVGReader(MiniSVG):
         if not self.check_attrs(self.elem, MANDATORY_ATTRS_IN_TOP_SVG):
             return CropArea(0, 0, 100, 100)
         # Get the crop area, it's in the top SVG and mandatory
-        viewbox = self.root.values.get(SVG_ATTR_VIEWBOX.lower())
+        viewbox = self.root[0].values.get(SVG_ATTR_VIEWBOX.lower())
         vb = Viewbox(viewbox)
         return CropArea(vb.x, vb.y, vb.width, vb.height)
 
     def read_font_size(self) -> int:
         # Get the font-size, which is base for all fonts inside
-        font_size = self.root.values.get('font-size')
+        font_size = self.root[0].values.get('font-size')
         try:
             return int(font_size)
         except TypeError:
@@ -297,7 +297,6 @@ class CardSVGReader(MiniSVG):
 
     def text_from_svg(self, elem: Tag, svg: Text) -> TaxoImageNumber:
         self.check_attrs(elem, MANDATORY_ATTRS_IN_TEXT)
-        # Take the _computed_ coords, meaning that in theory it could be a leaning line, rotated just enough.
         coords = Point(svg.x, svg.y)
         if svg.text not in ALLOWED_TEXTS:
             self.err("forbidden here: %s", elem, svg.text)
@@ -311,10 +310,10 @@ class CardSVGReader(MiniSVG):
         """
         ret = OrderedDict()
         # Loop over XHTML children
-        for a_child in no_blank_ite(group.children):
+        for child_num, a_child in enumerate(no_blank_ite(group.children)):
             child_id = get_id(a_child)
-            if a_child.name in (SVG_TAG_TITLE, SVG_TAG_TEXT):
-                # OK to not have id
+            if a_child.name in (SVG_TAG_TITLE,):
+                # OK to not have id and we don't store it
                 continue
             elif a_child.name in OK_TAGS_IN_SHAPE:
                 if child_id is None:
@@ -333,7 +332,6 @@ class CardSVGReader(MiniSVG):
         """
         ret = []
         # Loop over group children, so the parsed TaxoImageShape keeps shapes order
-        # TODO: id-less children are not caught!
         for a_svg_id, a_svg_elem in svg_group.items():
             a_svg = self.root.get_element_by_id(a_svg_id)
             shape: TaxoImageShape
@@ -343,9 +341,16 @@ class CardSVGReader(MiniSVG):
                 shape = self.circle_from_svg(a_svg_elem, a_svg)
             elif isinstance(a_svg, SVGPath):
                 shape = self.path_from_svg(a_svg_elem, a_svg)
-            elif isinstance(a_svg, Text):
+            elif a_svg is None and a_svg_elem.name == SVG_TAG_TEXT:
+                # For some reason, the Text elements are not properly referenced by their ID
+                a_svg: Text = next(self.root.select(lambda s: s.id==a_svg_id))
                 shape = self.text_from_svg(a_svg_elem, a_svg)
+            elif a_svg_elem.name == SVG_TAG_USE:
+                continue  # Segment
+            elif a_svg_elem.name == SVG_NAME_TAG:
+                continue  # Image
             else:
+                self.err("group element %s (%s) is not managed", self.elem, a_svg_id, a_svg)
                 continue
             ret.append(shape)
         return ret

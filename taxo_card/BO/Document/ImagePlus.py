@@ -177,5 +177,3 @@ class ConfusionSchema(SchemaFromImage):
     where_conf: List[TaxoImageLine]
     # The circled numbers
     numbers: List[TaxoImageNumber]
-    # Their text, basically formatted with <em> <strong>
-    why_conf: List[str]
